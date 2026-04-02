@@ -319,6 +319,8 @@ CUDA를 실제로 사용하는 작업 전에는 아래를 먼저 확인한다.
 - `logs/`: 실행 로그
 - `result/`: 최종 완성본
 - `pages/`: 페이지 manifest
+- `artifacts/composite/`: 최종 합성 추적본
+- `artifacts/debug/step6_<timestamp>_summary.json`: 배치 검증 요약
 
 파일 계약은 항상 원본 페이지 좌표계와 해상도를 기준으로 맞춘다.
 

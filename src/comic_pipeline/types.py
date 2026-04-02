@@ -60,13 +60,17 @@ class PageManifest:
     nano_source_kind: str | None = None
     nano_banana_raw_path: str = ""
     nano_banana_rgba_path: str = ""
+    registration_report_path: str = ""
     final_composite_path: str = ""
     result_path: str = ""
+    diff_preview_path: str = ""
     overlay_preview_path: str = ""
     validation_report_path: str = ""
     step2_validation_report_path: str = ""
     step3_validation_report_path: str = ""
     step4_validation_report_path: str = ""
+    step5_validation_report_path: str = ""
+    step6_validation_report_path: str = ""
     step1_detector_name: str = ""
     balloons: list[dict[str, Any]] = field(default_factory=list)
 
@@ -139,6 +143,67 @@ class Step4ValidationReport:
     outside_rgb_nonzero_pixels: int
     inside_alpha_preservation_ratio: float
     nonzero_alpha_pixels: int
+    passed: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class RegistrationReport:
+    page_id: str
+    source_kind: str | None
+    reference_source: str
+    moving_support_source: str
+    source_size_matches: bool
+    alignment_applied: bool
+    method_used: str
+    initial_score: float
+    refined_score: float
+    final_score: float
+    warning_level: str
+    source_width: int
+    source_height: int
+    output_width: int
+    output_height: int
+    transform_matrix: list[list[float]]
+    notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class Step5ValidationReport:
+    page_id: str
+    final_exists: bool
+    final_size_matches: bool
+    overlay_exists: bool
+    overlay_size_matches: bool
+    registration_report_exists: bool
+    registration_score: float
+    registration_warning_level: str
+    outside_mask_diff_pixels: int
+    outside_mask_region_pixels: int
+    outside_mask_diff_ratio: float
+    passed: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class Step6ValidationReport:
+    scope: str
+    page_ids: list[str]
+    done_pages: list[str]
+    check_pages: list[str]
+    missing_artifact_pages: list[str]
+    severe_registration_pages: list[str]
+    outside_mask_diff_pages: list[str]
+    page_summaries: list[dict[str, Any]]
     passed: bool = False
     notes: list[str] = field(default_factory=list)
 

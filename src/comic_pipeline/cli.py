@@ -10,6 +10,8 @@ from comic_pipeline.make_balloons_only import (
     make_balloons_only,
     validate_step2,
 )
+from comic_pipeline.step5 import compose_final, format_step5_report, validate_step5
+from comic_pipeline.step6 import format_step6_report, validate_step6
 from comic_pipeline.step3 import (
     format_step3_report,
     import_external_result,
@@ -126,6 +128,29 @@ def build_parser() -> argparse.ArgumentParser:
     validate_step4_parser.add_argument("project_root", help="Path to the selected project folder.")
     validate_step4_parser.add_argument("--page-id", required=True, help="Page id to validate, e.g. 0001.")
 
+    compose_final_parser = subparsers.add_parser(
+        "compose-final",
+        help="Run Step 5 final composition against the restored translated RGBA layer.",
+    )
+    compose_final_parser.add_argument("project_root", help="Path to the selected project folder.")
+    compose_final_parser.add_argument("--page-id", required=True, help="Page id to process, e.g. 0001.")
+
+    validate_step5_parser = subparsers.add_parser(
+        "validate-step5",
+        help="Run the Step 5 validation checks against the final composite output.",
+    )
+    validate_step5_parser.add_argument("project_root", help="Path to the selected project folder.")
+    validate_step5_parser.add_argument("--page-id", required=True, help="Page id to validate, e.g. 0001.")
+
+    validate_step6_parser = subparsers.add_parser(
+        "validate-step6",
+        help="Run the Step 6 batch validation summary over one page or the whole project.",
+    )
+    validate_step6_parser.add_argument("project_root", help="Path to the selected project folder.")
+    validate_step6_group = validate_step6_parser.add_mutually_exclusive_group(required=True)
+    validate_step6_group.add_argument("--page-id", help="Single page id to summarize, e.g. 0001.")
+    validate_step6_group.add_argument("--all", action="store_true", help="Summarize every page in the project.")
+
     benchmark_parser = subparsers.add_parser(
         "benchmark-detectors",
         help="Run a proxy benchmark across open-source detector candidates.",
@@ -230,6 +255,27 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "validate-step4":
             report = validate_step4(project_root, args.page_id)
             print(format_step4_report(report))
+            return 0 if report.passed else 1
+
+        if args.command == "compose-final":
+            result = compose_final(project_root, args.page_id)
+            print("[OK] step5 final composite finished")
+            for key, value in result.items():
+                print(f"{key}: {value}")
+            return 0 if result["passed"] else 1
+
+        if args.command == "validate-step5":
+            report = validate_step5(project_root, args.page_id)
+            print(format_step5_report(report))
+            return 0 if report.passed else 1
+
+        if args.command == "validate-step6":
+            report = validate_step6(
+                project_root,
+                page_id=getattr(args, "page_id", None),
+                validate_all=getattr(args, "all", False),
+            )
+            print(format_step6_report(report))
             return 0 if report.passed else 1
 
         if args.command == "benchmark-detectors":

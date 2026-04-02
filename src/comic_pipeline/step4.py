@@ -9,10 +9,12 @@ from comic_pipeline.make_balloons_only import build_soft_alpha_from_union_mask
 from comic_pipeline.project import (
     load_page_manifest,
     load_project_manifest,
+    read_json,
     save_page_manifest,
     save_project_manifest,
     write_json,
 )
+from comic_pipeline.registration import align_source_to_page
 from comic_pipeline.types import RuntimeDependencyError, Step4ValidationReport
 
 
@@ -174,30 +176,30 @@ def _to_rgb(image: Any) -> Any:
 
 def _normalize_source_to_raw_contract(
     *,
+    project_root: Path,
+    page_id: str,
     source_path: Path,
+    source_kind: str | None,
     raw_output_path: Path,
     expected_size: tuple[int, int],
-) -> tuple[bool, bool]:
-    cv2, _ = _require_step4_runtime()
-    source_image = _read_image(source_path)
-    source_height, source_width = source_image.shape[:2]
-    source_size_matches = (source_width, source_height) == expected_size
-    alignment_applied = False
-
-    normalized = source_image
-    if not source_size_matches:
-        interpolation = (
-            cv2.INTER_AREA
-            if source_width > expected_size[0] or source_height > expected_size[1]
-            else cv2.INTER_LINEAR
-        )
-        normalized = cv2.resize(source_image, expected_size, interpolation=interpolation)
-        alignment_applied = True
-
-    raw_output_path.parent.mkdir(parents=True, exist_ok=True)
-    if not cv2.imwrite(str(raw_output_path), normalized):
-        raise OSError(f"Unable to write normalized Step 4 raw image: {raw_output_path}")
-    return source_size_matches, alignment_applied
+) -> tuple[bool, bool, object]:
+    report_output_path = project_root / "artifacts" / "debug" / f"{page_id}_registration.json"
+    preview_output_path = project_root / "artifacts" / "previews" / f"{page_id}_registration_overlay.png"
+    registration_report = align_source_to_page(
+        project_root=project_root,
+        page_id=page_id,
+        source_path=source_path,
+        source_kind=source_kind,
+        expected_size=expected_size,
+        raw_output_path=raw_output_path,
+        report_output_path=report_output_path,
+        preview_output_path=preview_output_path,
+    )
+    return (
+        registration_report.source_size_matches,
+        registration_report.alignment_applied,
+        registration_report,
+    )
 
 
 def _compose_restored_rgba(raw_image: Any, restored_alpha: Any) -> Any:
@@ -324,6 +326,16 @@ def _source_size_metadata(
     source_kind: str | None,
 ) -> tuple[bool, bool, bool]:
     page_manifest = load_page_manifest(project_root, page_id)
+    if page_manifest.registration_report_path:
+        report_path = project_root / page_manifest.registration_report_path
+        if report_path.exists():
+            report_payload = read_json(report_path)
+            return (
+                True,
+                bool(report_payload.get("source_size_matches", False)),
+                bool(report_payload.get("alignment_applied", False)),
+            )
+
     readable_image = True
     source_size_matches = True
     alignment_applied = False
@@ -431,8 +443,11 @@ def restore_alpha(project_root: Path, page_id: str) -> dict[str, Any]:
     try:
         source_path, source_kind = _resolve_step4_source(project_root, page_id)
         raw_output_path = project_root / "artifacts" / "nano" / f"{page_id}_raw.png"
-        source_size_matches, alignment_applied = _normalize_source_to_raw_contract(
+        source_size_matches, alignment_applied, registration_report = _normalize_source_to_raw_contract(
+            project_root=project_root,
+            page_id=page_id,
             source_path=source_path,
+            source_kind=source_kind,
             raw_output_path=raw_output_path,
             expected_size=context["expected_size"],
         )
@@ -457,6 +472,12 @@ def restore_alpha(project_root: Path, page_id: str) -> dict[str, Any]:
         save_page_manifest(project_root, page_manifest)
 
         report = validate_step4(project_root, page_id)
+        if report.passed and registration_report.warning_level != "normal":
+            report.notes.append(
+                "registration warning level is "
+                f"{registration_report.warning_level} (score={registration_report.final_score:.4f})"
+            )
+            _save_step4_report(project_root, page_id, report)
         if not source_size_matches and alignment_applied and report.passed:
             report.notes.append(
                 "manual import size mismatch was tolerated for Phase 4 by aligning to the page canvas"
