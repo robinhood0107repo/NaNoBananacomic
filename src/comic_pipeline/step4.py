@@ -125,12 +125,24 @@ def _read_image(path: Path) -> Any:
 def _resolve_step4_source(project_root: Path, page_id: str) -> tuple[Path, str]:
     page_manifest = load_page_manifest(project_root, page_id)
 
+    manual_path: Path | None = None
+    if page_manifest.nano_source_kind == "manual_web":
+        if page_manifest.nano_manual_import_path:
+            candidate = project_root / page_manifest.nano_manual_import_path
+            if candidate.exists():
+                manual_path = candidate
+        if manual_path is None:
+            manual_path = _discover_manual_import_candidate(project_root, page_id)
+        if manual_path is not None:
+            page_manifest.nano_manual_import_path = _as_relative(project_root, manual_path)
+            save_page_manifest(project_root, page_manifest)
+            return manual_path, "manual_web"
+
     if page_manifest.nano_banana_raw_path:
         raw_path = project_root / page_manifest.nano_banana_raw_path
         if raw_path.exists():
             return raw_path, page_manifest.nano_source_kind or "raw_contract"
 
-    manual_path: Path | None = None
     if page_manifest.nano_manual_import_path:
         candidate = project_root / page_manifest.nano_manual_import_path
         if candidate.exists():

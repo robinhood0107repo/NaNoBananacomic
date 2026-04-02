@@ -72,7 +72,7 @@ class Step3ManualTests(unittest.TestCase):
             self.assertTrue(page_manifest.nano_banana_raw_path.endswith("_raw.png"))
             self.assertTrue((project_root / page_manifest.nano_banana_raw_path).exists())
 
-    def test_import_external_result_rejects_wrong_size_and_marks_check(self) -> None:
+    def test_import_external_result_accepts_wrong_size_with_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             build_phase2_ready_page(project_root)
@@ -82,14 +82,17 @@ class Step3ManualTests(unittest.TestCase):
             cv2.imwrite(str(input_path), wrong_size)
 
             result = import_external_result(project_root, "0001", input_path)
+            report = validate_step3(project_root, "0001")
             page_manifest = load_page_manifest(project_root, "0001")
             report_payload = read_json(project_root / page_manifest.step3_validation_report_path)
 
-            self.assertFalse(result["passed"])
-            self.assertEqual(page_manifest.status, "check")
-            self.assertEqual(page_manifest.nano_banana_raw_path, "")
-            self.assertFalse(report_payload["passed"])
-            self.assertIn("size does not match", " ".join(report_payload["notes"]))
+            self.assertTrue(result["passed"])
+            self.assertTrue(report.passed)
+            self.assertFalse(report.size_matches)
+            self.assertEqual(page_manifest.status, "nano_pending")
+            self.assertTrue(page_manifest.nano_banana_raw_path.endswith("_raw.png"))
+            self.assertTrue((project_root / page_manifest.nano_banana_raw_path).exists())
+            self.assertIn("aligned in Phase 4", " ".join(report_payload["notes"]))
 
 
 if __name__ == "__main__":

@@ -51,6 +51,24 @@ class _FakeGeminiAdapter:
         return output_path
 
 
+class _WrongSizeGeminiAdapter:
+    def generate(
+        self,
+        *,
+        prompt: str,
+        layer_path: Path,
+        original_page_path: Path | None,
+        output_dir: Path,
+        api_key: str,
+        model_name: str,
+    ) -> Path:
+        del prompt, layer_path, original_page_path, api_key, model_name
+        image = np.full((180, 140, 3), 220, dtype=np.uint8)
+        output_path = output_dir / "wrong_size_response.png"
+        cv2.imwrite(str(output_path), image)
+        return output_path
+
+
 class Step3ApiTests(unittest.TestCase):
     def test_run_external_edit_uses_mock_adapter_and_writes_raw(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -96,6 +114,31 @@ class Step3ApiTests(unittest.TestCase):
             self.assertEqual(page_manifest.status, "check")
             self.assertEqual(page_manifest.nano_banana_raw_path, "")
             self.assertIn("credential", " ".join(report_payload["notes"]).lower())
+
+    def test_run_external_edit_accepts_wrong_size_with_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase2_ready_page(project_root)
+
+            project_manifest = load_project_manifest(project_root)
+            project_manifest.nano_integration_mode = "api_auto"
+            save_project_manifest(project_root, project_manifest)
+            set_session_api_key("gemini", "test-key")
+
+            with patch("comic_pipeline.step3.build_provider_adapter", return_value=_WrongSizeGeminiAdapter()):
+                result = run_external_edit(project_root, "0001")
+
+            page_manifest = load_page_manifest(project_root, "0001")
+            report_payload = read_json(project_root / page_manifest.step3_validation_report_path)
+
+            self.assertTrue(result["passed"])
+            self.assertEqual(page_manifest.nano_source_kind, "api_auto")
+            self.assertEqual(page_manifest.status, "nano_pending")
+            self.assertTrue((project_root / page_manifest.nano_banana_raw_path).exists())
+            self.assertTrue(report_payload["passed"])
+            self.assertFalse(report_payload["size_matches"])
+            self.assertIn("aligned in Phase 4", " ".join(report_payload["notes"]))
+            clear_session_api_key("gemini")
 
 
 if __name__ == "__main__":

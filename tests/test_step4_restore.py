@@ -13,7 +13,7 @@ import comic_pipeline  # noqa: F401
 import cv2  # type: ignore[import-not-found]
 import numpy as np  # type: ignore[import-not-found]
 
-from comic_pipeline.project import load_page_manifest, read_json
+from comic_pipeline.project import load_page_manifest, read_json, save_page_manifest
 from comic_pipeline.step3 import import_external_result
 from comic_pipeline.step4 import restore_alpha, validate_step4
 from step3_test_utils import build_phase2_ready_page
@@ -105,6 +105,36 @@ class Step4RestoreTests(unittest.TestCase):
             self.assertEqual(page_manifest.nano_banana_rgba_path, "")
             self.assertFalse(report_payload["passed"])
             self.assertIn("No Phase 4 input was found", " ".join(report_payload["notes"]))
+
+    def test_restore_alpha_prefers_manual_import_over_existing_raw_for_manual_web(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase2_ready_page(project_root)
+
+            stale_raw = np.full((240, 180, 3), 30, dtype=np.uint8)
+            stale_raw_path = project_root / "artifacts" / "nano" / "0001_raw.png"
+            cv2.imwrite(str(stale_raw_path), stale_raw)
+
+            manual = np.full((240, 180, 3), 220, dtype=np.uint8)
+            manual_path = project_root / "imports" / "nano" / "0001_submitted.png"
+            cv2.imwrite(str(manual_path), manual)
+
+            page_manifest = load_page_manifest(project_root, "0001")
+            page_manifest.nano_source_kind = "manual_web"
+            page_manifest.nano_manual_import_path = "imports/nano/0001_submitted.png"
+            page_manifest.nano_banana_raw_path = "artifacts/nano/0001_raw.png"
+            save_page_manifest(project_root, page_manifest)
+
+            result = restore_alpha(project_root, "0001")
+            updated_manifest = load_page_manifest(project_root, "0001")
+            updated_raw = cv2.imread(
+                str(project_root / updated_manifest.nano_banana_raw_path),
+                cv2.IMREAD_UNCHANGED,
+            )
+
+            self.assertTrue(result["passed"])
+            self.assertEqual(updated_manifest.nano_manual_import_path, "imports/nano/0001_submitted.png")
+            self.assertEqual(int(updated_raw[0, 0, 0]), 220)
 
 
 if __name__ == "__main__":

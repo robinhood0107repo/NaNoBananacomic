@@ -315,24 +315,17 @@ def _normalize_external_result(
     input_path: Path,
     output_path: Path,
     expected_size: tuple[int, int],
-) -> bool:
+) -> tuple[bool, bool]:
     _, Image, UnidentifiedImageError = _require_step3_runtime()
     try:
         with Image.open(input_path) as image:
             source_size = image.size
-            if source_size != expected_size:
-                raise Step3NormalizationError(
-                    "External result size does not match the original page size: "
-                    f"{source_size} != {expected_size}",
-                    readable_image=True,
-                    size_matches=False,
-                    has_alpha_channel="A" in image.getbands() or "transparency" in image.info,
-                )
+            size_matches = source_size == expected_size
             has_alpha_channel = "A" in image.getbands() or "transparency" in image.info
             converted = image.convert("RGBA" if has_alpha_channel else "RGB")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             converted.save(output_path, format="PNG")
-            return has_alpha_channel
+            return has_alpha_channel, size_matches
     except Step3NormalizationError:
         raise
     except (OSError, UnidentifiedImageError) as exc:
@@ -359,7 +352,9 @@ def summarize_step3_validation(
     if not readable_image:
         notes.append("raw external result is unreadable")
     if readable_image and not size_matches:
-        notes.append("raw external result size does not match the original page size")
+        notes.append(
+            "raw external result size does not match the original page size and will be aligned in Phase 4"
+        )
     if opaque_output:
         notes.append("raw external result is opaque and will require Phase 4 alpha restore")
     if outside_support_rgb_nonzero_pixels > 0:
@@ -373,9 +368,11 @@ def summarize_step3_validation(
             f"{outside_support_alpha_nonzero_pixels}"
         )
 
-    passed = readable_image and size_matches
-    if passed:
+    passed = readable_image
+    if passed and size_matches:
         notes.append("step3 validation passed and the raw result is ready for Phase 4")
+    elif passed:
+        notes.append("step3 validation passed with a size-mismatch warning and the raw result is ready for Phase 4 alignment")
 
     return Step3ValidationReport(
         page_id=page_id,
