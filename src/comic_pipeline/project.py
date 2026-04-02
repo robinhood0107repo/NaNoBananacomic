@@ -70,13 +70,18 @@ def save_page_manifest(project_root: Path, manifest: PageManifest) -> None:
     write_json(page_manifest_path(project_root, manifest.page_id), manifest.to_dict())
 
 
-def create_project(project_root: Path, profile_mode: str = "auto") -> ProjectManifest:
+def create_project(
+    project_root: Path,
+    profile_mode: str = "auto",
+    target_language: str = "한국어",
+) -> ProjectManifest:
     project_root.mkdir(parents=True, exist_ok=True)
     ensure_project_dirs(project_root)
     manifest = ProjectManifest(
         project_id=slugify_project_id(project_root),
         project_root=str(project_root),
         profile_mode=profile_mode,
+        nano_target_language=target_language,
     )
     save_project_manifest(project_root, manifest)
     return manifest

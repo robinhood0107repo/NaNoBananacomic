@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "bw_manga", "color_comic", "three_d_comic"],
         help="Initial profile mode stored in project.json.",
     )
+    init_parser.add_argument(
+        "--target-language",
+        default="한국어",
+        help="Target language for Step 3 translation/typesetting. Default: 한국어.",
+    )
 
     scan_parser = subparsers.add_parser("scan-pages", help="Discover image files in the project root.")
     scan_parser.add_argument("project_root", help="Path to the selected project folder.")
@@ -135,7 +140,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "init-project":
-            manifest = create_project(project_root, profile_mode=args.profile_mode)
+            manifest = create_project(
+                project_root,
+                profile_mode=args.profile_mode,
+                target_language=args.target_language,
+            )
             print(f"[OK] project initialized: {manifest.project_root}")
             return 0
 

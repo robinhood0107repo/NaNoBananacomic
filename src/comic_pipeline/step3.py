@@ -154,6 +154,7 @@ def build_step3_prompt(
     page_id: str,
     width: int,
     height: int,
+    target_language: str,
     include_original_page: bool,
 ) -> str:
     context_line = (
@@ -167,8 +168,9 @@ def build_step3_prompt(
         "Requirements:\n"
         f"- Keep the exact canvas size at {width}x{height}.\n"
         "- Only edit inside the visible speech balloons.\n"
-        "- Translate the Japanese source text into natural Korean.\n"
-        "- Typeset the Korean text cleanly inside each balloon.\n"
+        "- Detect the source language automatically from the provided content.\n"
+        f"- Translate all speech-bubble text into natural {target_language}.\n"
+        f"- Typeset the translated {target_language} text cleanly inside each balloon.\n"
         "- Clean up the balloon interior as needed for typesetting.\n"
         "- Keep everything outside the balloons transparent.\n"
         "- Do not redraw the full manga page or create new non-balloon artwork.\n"
@@ -213,6 +215,7 @@ def make_handoff(project_root: Path, page_id: str) -> dict[str, Any]:
         page_id=page_id,
         width=page_manifest.width,
         height=page_manifest.height,
+        target_language=project_manifest.nano_target_language,
         include_original_page=project_manifest.nano_include_original_page,
     )
     prompt_path.write_text(prompt, encoding="utf-8")
@@ -222,6 +225,7 @@ def make_handoff(project_root: Path, page_id: str) -> dict[str, Any]:
         "integration_mode": project_manifest.nano_integration_mode,
         "provider": project_manifest.nano_provider,
         "model_label": project_manifest.nano_model,
+        "target_language": project_manifest.nano_target_language,
         "resolved_model_id": _resolve_gemini_model_id(project_manifest.nano_model)
         if project_manifest.nano_provider == "gemini"
         else project_manifest.nano_model,
@@ -654,6 +658,7 @@ def run_external_edit(project_root: Path, page_id: str) -> dict[str, Any]:
                 page_id=page_id,
                 width=page_manifest.width,
                 height=page_manifest.height,
+                target_language=project_manifest.nano_target_language,
                 include_original_page=project_manifest.nano_include_original_page,
             ),
             layer_path=layer_path,

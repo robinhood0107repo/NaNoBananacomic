@@ -23,6 +23,7 @@ class ProjectTests(unittest.TestCase):
             self.assertEqual(saved["nano_integration_mode"], "manual_web")
             self.assertEqual(saved["nano_provider"], "gemini")
             self.assertEqual(saved["nano_model"], "nano-banana-2")
+            self.assertEqual(saved["nano_target_language"], "한국어")
             self.assertEqual(saved["imports_dir"], "imports")
             self.assertTrue((project_root / "imports" / "nano").exists())
             self.assertTrue((project_root / "artifacts" / "handoff").exists())

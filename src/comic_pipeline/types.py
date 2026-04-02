@@ -29,6 +29,7 @@ class ProjectManifest:
     nano_integration_mode: str = "manual_web"
     nano_provider: str = "gemini"
     nano_model: str = "nano-banana-2"
+    nano_target_language: str = "한국어"
     imports_dir: str = "imports"
     nano_include_original_page: bool = True
     page_count: int = 0
