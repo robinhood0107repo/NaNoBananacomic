@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nanobananacomic"
+version = "0.1.0"
+description = "Local speech-bubble detection and project pipeline for manga/comic translation workflows."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.0,<3.0",
+  "opencv-python>=4.10,<5.0",
+  "pillow>=10.0,<11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.11,<2.0",
+  "pytest>=8.3,<9.0",
+  "ruff>=0.6,<0.7",
+]
+
+[project.scripts]
+comic-pipeline = "comic_pipeline.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/comic_pipeline"]
+

@@ -1,0 +1,44 @@
+# Repository exclusions
+legacy/
+GUI_PLAN/
+
+# Local environments and vendored dependencies
+.venv/
+.vendor/
+.bootstrap/
+.codex
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build and packaging artifacts
+build/
+dist/
+.eggs/
+*.egg-info/
+pip-wheel-metadata/
+
+# IDE and OS metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated pipeline outputs
+artifacts/
+logs/
+pages/
+result/
+project.json
+
+# Common local logs
+*.log

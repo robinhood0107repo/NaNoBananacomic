@@ -1,0 +1,4 @@
+# Pinned runtime dependencies for reproducible installs and deployment.
+numpy==2.4.4
+opencv-python==4.13.0.92
+Pillow==12.2.0
