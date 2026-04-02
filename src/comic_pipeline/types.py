@@ -66,6 +66,7 @@ class PageManifest:
     validation_report_path: str = ""
     step2_validation_report_path: str = ""
     step3_validation_report_path: str = ""
+    step4_validation_report_path: str = ""
     step1_detector_name: str = ""
     balloons: list[dict[str, Any]] = field(default_factory=list)
 
@@ -118,6 +119,26 @@ class Step3ValidationReport:
     opaque_output: bool
     outside_support_rgb_nonzero_pixels: int
     outside_support_alpha_nonzero_pixels: int
+    passed: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class Step4ValidationReport:
+    page_id: str
+    source_kind: str | None
+    readable_image: bool
+    source_size_matches: bool
+    alignment_applied: bool
+    restored_size_matches: bool
+    has_alpha_channel: bool
+    outside_alpha_sum: int
+    outside_rgb_nonzero_pixels: int
+    inside_alpha_preservation_ratio: float
+    nonzero_alpha_pixels: int
     passed: bool = False
     notes: list[str] = field(default_factory=list)
 

@@ -14,7 +14,7 @@ if errorlevel 1 (
 if "%~1"=="" (
   echo NaNoBananacomic launcher
   echo.
-  echo This repository currently exposes Step 1, Step 2, and Step 3 CLI workflows.
+  echo This repository currently exposes Step 1, Step 2, Step 3, and Step 4 CLI workflows.
   echo.
   echo Example commands:
   echo   launch.bat init-project ^<PROJECT_FOLDER^>
@@ -26,6 +26,8 @@ if "%~1"=="" (
   echo   launch.bat import-external-result ^<PROJECT_FOLDER^> --page-id 0001 --input ^<RESULT_IMAGE^>
   echo   launch.bat validate-step3 ^<PROJECT_FOLDER^> --page-id 0001
   echo   launch.bat run-external-edit ^<PROJECT_FOLDER^> --page-id 0001
+  echo   launch.bat restore-alpha ^<PROJECT_FOLDER^> --page-id 0001
+  echo   launch.bat validate-step4 ^<PROJECT_FOLDER^> --page-id 0001
   echo.
   echo Note:
   echo   Step 3 API mode uses the GEMINI_API_KEY environment variable or a future GUI session key.

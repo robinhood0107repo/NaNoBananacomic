@@ -17,6 +17,7 @@ from comic_pipeline.step3 import (
     run_external_edit,
     validate_step3,
 )
+from comic_pipeline.step4 import format_step4_report, restore_alpha, validate_step4
 from comic_pipeline.detectors.registry import list_detector_names
 from comic_pipeline.project import create_project, scan_pages
 from comic_pipeline.step1 import detect_page, format_report, validate_step1
@@ -111,6 +112,20 @@ def build_parser() -> argparse.ArgumentParser:
     run_external_edit_parser.add_argument("project_root", help="Path to the selected project folder.")
     run_external_edit_parser.add_argument("--page-id", required=True, help="Page id to process, e.g. 0001.")
 
+    restore_alpha_parser = subparsers.add_parser(
+        "restore-alpha",
+        help="Run Step 4 alpha restoration against the normalized or manually imported result.",
+    )
+    restore_alpha_parser.add_argument("project_root", help="Path to the selected project folder.")
+    restore_alpha_parser.add_argument("--page-id", required=True, help="Page id to process, e.g. 0001.")
+
+    validate_step4_parser = subparsers.add_parser(
+        "validate-step4",
+        help="Run the Step 4 validation checks against the restored translated RGBA layer.",
+    )
+    validate_step4_parser.add_argument("project_root", help="Path to the selected project folder.")
+    validate_step4_parser.add_argument("--page-id", required=True, help="Page id to validate, e.g. 0001.")
+
     benchmark_parser = subparsers.add_parser(
         "benchmark-detectors",
         help="Run a proxy benchmark across open-source detector candidates.",
@@ -204,6 +219,18 @@ def main(argv: list[str] | None = None) -> int:
             for key, value in result.items():
                 print(f"{key}: {value}")
             return 0 if result["passed"] else 1
+
+        if args.command == "restore-alpha":
+            result = restore_alpha(project_root, args.page_id)
+            print("[OK] step4 alpha restore finished")
+            for key, value in result.items():
+                print(f"{key}: {value}")
+            return 0 if result["passed"] else 1
+
+        if args.command == "validate-step4":
+            report = validate_step4(project_root, args.page_id)
+            print(format_step4_report(report))
+            return 0 if report.passed else 1
 
         if args.command == "benchmark-detectors":
             page_ids = args.page_ids
