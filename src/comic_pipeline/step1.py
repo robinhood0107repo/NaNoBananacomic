@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from comic_pipeline.detectors.contour import ContourBalloonDetector
+from comic_pipeline.detectors.registry import build_detector, normalize_detector_name
 from comic_pipeline.project import (
     load_page_manifest,
     load_project_manifest,
@@ -71,10 +71,23 @@ def summarize_step1_validation(
     mask_nonzero_pixels: int,
     min_area_ratio: float = 0.001,
     max_area_ratio: float = 0.45,
+    baseline_detector_names: frozenset[str] = frozenset({"contour_baseline_v1"}),
+    max_largest_prediction_area_ratio: float = 0.18,
 ) -> Step1ValidationReport:
     notes: list[str] = []
     total_pixels = max(width * height, 1)
     area_ratio = mask_nonzero_pixels / float(total_pixels)
+    detector_names = sorted({prediction.model_name for prediction in predictions})
+    production_detector_active = any(
+        detector_name not in baseline_detector_names
+        for detector_name in detector_names
+    )
+    largest_prediction_area_ratio = (
+        max((prediction.area for prediction in predictions), default=0.0) / float(total_pixels)
+    )
+    dominant_prediction_detected = (
+        len(predictions) > 0 and largest_prediction_area_ratio > max_largest_prediction_area_ratio
+    )
     bbox_out_of_bounds = False
     for prediction in predictions:
         x1, y1, x2, y2 = prediction.bbox_xyxy
@@ -93,10 +106,26 @@ def summarize_step1_validation(
             f"mask area ratio {area_ratio:.4f} is outside the expected range "
             f"[{min_area_ratio:.4f}, {max_area_ratio:.4f}]"
         )
+    if detector_names and not production_detector_active:
+        notes.append(
+            "only baseline contour detector outputs are present; the doc-primary "
+            "model-backed detector is not active yet"
+        )
+    if dominant_prediction_detected:
+        notes.append(
+            f"largest prediction area ratio {largest_prediction_area_ratio:.4f} exceeds "
+            f"the review threshold {max_largest_prediction_area_ratio:.4f}"
+        )
 
-    passed = mask_non_empty and (not bbox_out_of_bounds) and area_ratio_in_expected_range
+    passed = (
+        mask_non_empty
+        and (not bbox_out_of_bounds)
+        and area_ratio_in_expected_range
+        and production_detector_active
+        and (not dominant_prediction_detected)
+    )
     if passed:
-        notes.append("step1 baseline checks passed")
+        notes.append("step1 validation passed and the page is ready for Step 2")
 
     return Step1ValidationReport(
         page_id=page_id,
@@ -105,15 +134,30 @@ def summarize_step1_validation(
         prediction_count=len(predictions),
         bbox_out_of_bounds=bbox_out_of_bounds,
         area_ratio_in_expected_range=area_ratio_in_expected_range,
+        detector_names=detector_names,
+        production_detector_active=production_detector_active,
+        largest_prediction_area_ratio=largest_prediction_area_ratio,
+        dominant_prediction_detected=dominant_prediction_detected,
         passed=passed,
         notes=notes,
     )
 
 
-def detect_page(project_root: Path, page_id: str) -> dict:
-    cv2, np = _require_cv_runtime()
-    detector = ContourBalloonDetector()
+def resolve_detector_name(page_profile: str, requested_name: str) -> str:
+    if requested_name != "auto":
+        return normalize_detector_name(requested_name)
+    if page_profile == "bw_manga":
+        return "manga109_seg_v1"
+    if page_profile in {"color_comic", "three_d_comic"}:
+        return "ogkalu_bubble_v1"
+    return "kitsumed_seg_v1"
+
+
+def detect_page(project_root: Path, page_id: str, detector_name: str = "auto") -> dict:
+    cv2, _ = _require_cv_runtime()
     page_manifest = load_page_manifest(project_root, page_id)
+    resolved_detector_name = resolve_detector_name(page_manifest.profile, detector_name)
+    detector = build_detector(resolved_detector_name)
     image_path = project_root / page_manifest.original_path
     image = cv2.imread(str(image_path))
     if image is None:
@@ -134,11 +178,12 @@ def detect_page(project_root: Path, page_id: str) -> dict:
     page_manifest.balloon_count = len(predictions)
     page_manifest.balloon_union_mask_path = str(mask_path.relative_to(project_root))
     page_manifest.overlay_preview_path = str(preview_path.relative_to(project_root))
+    page_manifest.step1_detector_name = detector.name
     page_manifest.balloons = [
         _prediction_to_manifest_item(prediction, f"{page_id}_b{index:02d}")
         for index, prediction in enumerate(predictions, start=1)
     ]
-    page_manifest.status = "mask_ready" if predictions else "check"
+    page_manifest.status = "mask_ready" if predictions and detector.is_production_ready else "check"
     save_page_manifest(project_root, page_manifest)
 
     project_manifest = load_project_manifest(project_root)
@@ -148,6 +193,7 @@ def detect_page(project_root: Path, page_id: str) -> dict:
     return {
         "page_id": page_id,
         "prediction_count": len(predictions),
+        "detector_name": detector.name,
         "mask_path": str(mask_path),
         "overlay_preview_path": str(preview_path),
         "status": page_manifest.status,
@@ -197,4 +243,3 @@ def validate_step1(project_root: Path, page_id: str) -> Step1ValidationReport:
 def format_report(report: Step1ValidationReport) -> str:
     payload = report.to_dict()
     return json.dumps(payload, indent=2, ensure_ascii=False)
-

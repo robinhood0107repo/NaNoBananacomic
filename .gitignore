@@ -7,6 +7,7 @@ testmanga/
 .venv/
 .vendor/
 .bootstrap/
+.model_cache/
 .codex
 
 # Python cache and test artifacts

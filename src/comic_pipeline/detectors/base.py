@@ -8,8 +8,8 @@ from comic_pipeline.types import BalloonPrediction
 
 class BalloonDetector(ABC):
     name: str
+    is_production_ready: bool = True
 
     @abstractmethod
     def predict(self, image: Any) -> list[BalloonPrediction]:
         raise NotImplementedError
-

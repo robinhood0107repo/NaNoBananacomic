@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from comic_pipeline.project import create_project, read_json, scan_pages
+from comic_pipeline.project import create_project, load_page_manifest, read_json, scan_pages, save_page_manifest
 
 
 class ProjectTests(unittest.TestCase):
@@ -35,7 +35,27 @@ class ProjectTests(unittest.TestCase):
             self.assertTrue((project_root / "pages" / "0001.page.json").exists())
             self.assertTrue((project_root / "pages" / "0002.page.json").exists())
 
+    def test_scan_pages_preserves_existing_page_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            create_project(project_root)
+            (project_root / "0001.png").write_bytes(b"")
+            scan_pages(project_root)
+
+            page = load_page_manifest(project_root, "0001")
+            page.status = "mask_ready"
+            page.balloon_union_mask_path = "artifacts/masks/0001_union.png"
+            page.step1_detector_name = "manga109_seg_v1"
+            save_page_manifest(project_root, page)
+
+            pages = scan_pages(project_root)
+            saved = load_page_manifest(project_root, "0001")
+
+            self.assertEqual(len(pages), 1)
+            self.assertEqual(saved.status, "mask_ready")
+            self.assertEqual(saved.balloon_union_mask_path, "artifacts/masks/0001_union.png")
+            self.assertEqual(saved.step1_detector_name, "manga109_seg_v1")
+
 
 if __name__ == "__main__":
     unittest.main()
-

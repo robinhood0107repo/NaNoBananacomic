@@ -53,6 +53,7 @@ class PageManifest:
     result_path: str = ""
     overlay_preview_path: str = ""
     validation_report_path: str = ""
+    step1_detector_name: str = ""
     balloons: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -67,9 +68,12 @@ class Step1ValidationReport:
     prediction_count: int
     bbox_out_of_bounds: bool
     area_ratio_in_expected_range: bool
-    passed: bool
-    notes: list[str]
+    passed: bool = False
+    notes: list[str] = field(default_factory=list)
+    detector_names: list[str] = field(default_factory=list)
+    production_detector_active: bool = False
+    largest_prediction_area_ratio: float = 0.0
+    dominant_prediction_detected: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-

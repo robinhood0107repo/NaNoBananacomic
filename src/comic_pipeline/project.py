@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from comic_pipeline.profile_router import route_page_profile
 from comic_pipeline.types import PageManifest, ProjectManifest
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
@@ -119,17 +120,26 @@ def build_page_manifest(project_root: Path, image_path: Path, resolved_profile: 
 
 def scan_pages(project_root: Path) -> list[PageManifest]:
     project_manifest = load_project_manifest(project_root)
-    resolved_profile = (
-        project_manifest.profile_mode
-        if project_manifest.profile_mode != "auto"
-        else "unknown"
-    )
     pages: list[PageManifest] = []
     for image_path in discover_project_images(project_root):
-        page_manifest = build_page_manifest(project_root, image_path, resolved_profile)
+        resolved_profile = (
+            project_manifest.profile_mode
+            if project_manifest.profile_mode != "auto"
+            else route_page_profile(image_path)
+        )
+        fresh_manifest = build_page_manifest(project_root, image_path, resolved_profile)
+        manifest_path = page_manifest_path(project_root, fresh_manifest.page_id)
+        if manifest_path.exists():
+            page_manifest = load_page_manifest(project_root, fresh_manifest.page_id)
+            page_manifest.original_path = fresh_manifest.original_path
+            page_manifest.width = fresh_manifest.width
+            page_manifest.height = fresh_manifest.height
+            page_manifest.profile = fresh_manifest.profile
+            page_manifest.result_path = fresh_manifest.result_path
+        else:
+            page_manifest = fresh_manifest
         save_page_manifest(project_root, page_manifest)
         pages.append(page_manifest)
     project_manifest.page_count = len(pages)
     save_project_manifest(project_root, project_manifest)
     return pages
-

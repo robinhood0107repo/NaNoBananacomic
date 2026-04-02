@@ -46,13 +46,13 @@ class Step1DetectSmokeTests(unittest.TestCase):
             cv2.imwrite(str(image_path), image)
 
             scan_pages(project_root)
-            detect_result = detect_page(project_root, "0001")
+            detect_result = detect_page(project_root, "0001", detector_name="contour_baseline_v1")
             report = validate_step1(project_root, "0001")
             page_manifest = load_page_manifest(project_root, "0001")
 
             self.assertGreaterEqual(detect_result["prediction_count"], 1)
-            self.assertTrue(report.passed)
-            self.assertEqual(page_manifest.status, "mask_ready")
+            self.assertFalse(report.passed)
+            self.assertEqual(page_manifest.status, "check")
             self.assertTrue((project_root / page_manifest.balloon_union_mask_path).exists())
             self.assertTrue((project_root / page_manifest.overlay_preview_path).exists())
 

@@ -19,7 +19,7 @@ class Step1ValidationTests(unittest.TestCase):
                 polygon=[[10, 10], [110, 10], [110, 110], [10, 110]],
                 area=10000.0,
                 confidence=0.9,
-                model_name="contour_baseline_v1",
+                model_name="manga109_seg_v1",
             )
         ]
         report = summarize_step1_validation(
@@ -31,6 +31,7 @@ class Step1ValidationTests(unittest.TestCase):
         )
         self.assertTrue(report.passed)
         self.assertFalse(report.bbox_out_of_bounds)
+        self.assertTrue(report.production_detector_active)
 
     def test_validation_fails_for_empty_mask(self) -> None:
         report = summarize_step1_validation(
@@ -42,6 +43,27 @@ class Step1ValidationTests(unittest.TestCase):
         )
         self.assertFalse(report.passed)
         self.assertIn("mask is empty", report.notes[0])
+
+    def test_validation_fails_for_baseline_only_detector(self) -> None:
+        predictions = [
+            BalloonPrediction(
+                bbox_xyxy=[10, 10, 110, 110],
+                polygon=[[10, 10], [110, 10], [110, 110], [10, 110]],
+                area=10000.0,
+                confidence=0.9,
+                model_name="contour_baseline_v1",
+            )
+        ]
+        report = summarize_step1_validation(
+            page_id="0003",
+            width=1000,
+            height=1000,
+            predictions=predictions,
+            mask_nonzero_pixels=15000,
+        )
+        self.assertFalse(report.passed)
+        self.assertFalse(report.production_detector_active)
+        self.assertTrue(any("baseline contour detector" in note for note in report.notes))
 
 
 if __name__ == "__main__":

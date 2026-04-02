@@ -20,6 +20,7 @@ class ContourDetectorConfig:
 
 class ContourBalloonDetector(BalloonDetector):
     name = "contour_baseline_v1"
+    is_production_ready = False
 
     def __init__(self, config: ContourDetectorConfig | None = None) -> None:
         self.config = config or ContourDetectorConfig()

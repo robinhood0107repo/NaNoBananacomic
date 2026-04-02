@@ -20,10 +20,15 @@ dev = [
   "pytest>=8.3,<9.0",
   "ruff>=0.6,<0.7",
 ]
+step1-models = [
+  "huggingface_hub>=0.31,<1.0",
+  "torch>=2.4,<3.0",
+  "torchvision>=0.19,<1.0",
+  "ultralytics>=8.3,<9.0",
+]
 
 [project.scripts]
 comic-pipeline = "comic_pipeline.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/comic_pipeline"]
-
