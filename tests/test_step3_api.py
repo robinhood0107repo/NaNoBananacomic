@@ -39,6 +39,8 @@ class _FakeGeminiAdapter:
         del original_page_path, api_key, model_name
         if "Keep everything outside the balloons transparent" not in prompt:
             raise AssertionError("Step 3 prompt lost a core constraint")
+        if "Use horizontal writing mode for the translated replacement text" not in prompt:
+            raise AssertionError("Step 3 prompt lost the horizontal writing constraint")
         image = cv2.imread(str(layer_path), cv2.IMREAD_UNCHANGED)
         if image is None:
             raise AssertionError("Handoff layer was not created before API execution")

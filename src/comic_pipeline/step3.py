@@ -171,6 +171,7 @@ def build_step3_prompt(
         "- Detect the source language automatically from the provided content.\n"
         f"- Translate all speech-bubble text into natural {target_language}.\n"
         f"- Typeset the translated {target_language} text cleanly inside each balloon.\n"
+        "- Use horizontal writing mode for the translated replacement text. Do not use vertical text layout.\n"
         "- Clean up the balloon interior as needed for typesetting.\n"
         "- Keep everything outside the balloons transparent.\n"
         "- Do not redraw the full manga page or create new non-balloon artwork.\n"
@@ -226,6 +227,10 @@ def make_handoff(project_root: Path, page_id: str) -> dict[str, Any]:
         "provider": project_manifest.nano_provider,
         "model_label": project_manifest.nano_model,
         "target_language": project_manifest.nano_target_language,
+        "typesetting": {
+            "target_language": project_manifest.nano_target_language,
+            "writing_mode": "horizontal",
+        },
         "resolved_model_id": _resolve_gemini_model_id(project_manifest.nano_model)
         if project_manifest.nano_provider == "gemini"
         else project_manifest.nano_model,
