@@ -38,7 +38,8 @@ class Step3ManualTests(unittest.TestCase):
             prompt_text = (request_dir / "prompt.md").read_text(encoding="utf-8")
             self.assertIn("Detect the source language automatically", prompt_text)
             self.assertIn("Translate all speech-bubble text into natural 한국어", prompt_text)
-            self.assertIn("Use horizontal writing mode for the translated replacement text", prompt_text)
+            self.assertIn("Use horizontal writing mode for all translated replacement text", prompt_text)
+            self.assertIn("Never use vertical text or vertical text layout under any circumstances", prompt_text)
             self.assertIn("Keep everything outside the balloons transparent", prompt_text)
 
             request_payload = json.loads((request_dir / "request.json").read_text(encoding="utf-8"))
