@@ -53,6 +53,7 @@ class PageManifest:
     result_path: str = ""
     overlay_preview_path: str = ""
     validation_report_path: str = ""
+    step2_validation_report_path: str = ""
     step1_detector_name: str = ""
     balloons: list[dict[str, Any]] = field(default_factory=list)
 
@@ -74,6 +75,22 @@ class Step1ValidationReport:
     production_detector_active: bool = False
     largest_prediction_area_ratio: float = 0.0
     dominant_prediction_detected: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class Step2ValidationReport:
+    page_id: str
+    size_matches: bool
+    has_alpha_channel: bool
+    outside_alpha_sum: int
+    inside_alpha_preservation_ratio: float
+    nonzero_alpha_pixels: int
+    outside_rgb_nonzero_pixels: int
+    passed: bool = False
+    notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

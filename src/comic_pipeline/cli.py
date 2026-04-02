@@ -5,6 +5,11 @@ import json
 from pathlib import Path
 
 from comic_pipeline.benchmark_detection import benchmark_detectors
+from comic_pipeline.make_balloons_only import (
+    format_step2_report,
+    make_balloons_only,
+    validate_step2,
+)
 from comic_pipeline.detectors.registry import list_detector_names
 from comic_pipeline.project import create_project, scan_pages
 from comic_pipeline.step1 import detect_page, format_report, validate_step1
@@ -14,7 +19,7 @@ from comic_pipeline.types import RuntimeDependencyError
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="comic-pipeline",
-        description="NaNoBananacomic local pipeline scaffold for Step 1 testing.",
+        description="NaNoBananacomic local pipeline scaffold for the bubble masking workflow.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -46,6 +51,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate_parser.add_argument("project_root", help="Path to the selected project folder.")
     validate_parser.add_argument("--page-id", required=True, help="Page id to validate, e.g. 0001.")
+
+    make_layer_parser = subparsers.add_parser(
+        "make-layer",
+        help="Run Step 2 balloon-only RGBA generation.",
+    )
+    make_layer_parser.add_argument("project_root", help="Path to the selected project folder.")
+    make_layer_parser.add_argument("--page-id", required=True, help="Page id to process, e.g. 0001.")
+
+    validate_step2_parser = subparsers.add_parser(
+        "validate-step2",
+        help="Run the Step 2 validation checks against a balloon-only RGBA layer.",
+    )
+    validate_step2_parser.add_argument("project_root", help="Path to the selected project folder.")
+    validate_step2_parser.add_argument("--page-id", required=True, help="Page id to validate, e.g. 0001.")
 
     benchmark_parser = subparsers.add_parser(
         "benchmark-detectors",
@@ -97,6 +116,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "validate-step1":
             report = validate_step1(project_root, args.page_id)
             print(format_report(report))
+            return 0 if report.passed else 1
+
+        if args.command == "make-layer":
+            result = make_balloons_only(project_root, args.page_id)
+            print("[OK] step2 layer generation finished")
+            for key, value in result.items():
+                print(f"{key}: {value}")
+            return 0 if result["passed"] else 1
+
+        if args.command == "validate-step2":
+            report = validate_step2(project_root, args.page_id)
+            print(format_step2_report(report))
             return 0 if report.passed else 1
 
         if args.command == "benchmark-detectors":
