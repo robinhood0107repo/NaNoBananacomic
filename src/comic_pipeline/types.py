@@ -26,6 +26,11 @@ class ProjectManifest:
     project_root: str
     profile_mode: str = "auto"
     resolved_profile: str = "unknown"
+    nano_integration_mode: str = "manual_web"
+    nano_provider: str = "gemini"
+    nano_model: str = "nano-banana-2"
+    imports_dir: str = "imports"
+    nano_include_original_page: bool = True
     page_count: int = 0
     result_dir: str = "result"
     artifacts_dir: str = "artifacts"
@@ -47,6 +52,11 @@ class PageManifest:
     status: str = "pending"
     balloon_union_mask_path: str = ""
     balloons_only_rgba_path: str = ""
+    nano_request_dir: str = ""
+    nano_request_prompt_path: str = ""
+    nano_request_manifest_path: str = ""
+    nano_manual_import_path: str = ""
+    nano_source_kind: str | None = None
     nano_banana_raw_path: str = ""
     nano_banana_rgba_path: str = ""
     final_composite_path: str = ""
@@ -54,6 +64,7 @@ class PageManifest:
     overlay_preview_path: str = ""
     validation_report_path: str = ""
     step2_validation_report_path: str = ""
+    step3_validation_report_path: str = ""
     step1_detector_name: str = ""
     balloons: list[dict[str, Any]] = field(default_factory=list)
 
@@ -89,6 +100,23 @@ class Step2ValidationReport:
     inside_alpha_preservation_ratio: float
     nonzero_alpha_pixels: int
     outside_rgb_nonzero_pixels: int
+    passed: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class Step3ValidationReport:
+    page_id: str
+    source_kind: str | None
+    readable_image: bool
+    size_matches: bool
+    has_alpha_channel: bool
+    opaque_output: bool
+    outside_support_rgb_nonzero_pixels: int
+    outside_support_alpha_nonzero_pixels: int
     passed: bool = False
     notes: list[str] = field(default_factory=list)
 

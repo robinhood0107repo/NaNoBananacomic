@@ -10,6 +10,13 @@ from comic_pipeline.make_balloons_only import (
     make_balloons_only,
     validate_step2,
 )
+from comic_pipeline.step3 import (
+    format_step3_report,
+    import_external_result,
+    make_handoff,
+    run_external_edit,
+    validate_step3,
+)
 from comic_pipeline.detectors.registry import list_detector_names
 from comic_pipeline.project import create_project, scan_pages
 from comic_pipeline.step1 import detect_page, format_report, validate_step1
@@ -65,6 +72,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate_step2_parser.add_argument("project_root", help="Path to the selected project folder.")
     validate_step2_parser.add_argument("--page-id", required=True, help="Page id to validate, e.g. 0001.")
+
+    make_handoff_parser = subparsers.add_parser(
+        "make-handoff",
+        help="Prepare the Step 3 handoff package for manual web or API execution.",
+    )
+    make_handoff_parser.add_argument("project_root", help="Path to the selected project folder.")
+    make_handoff_parser.add_argument("--page-id", required=True, help="Page id to process, e.g. 0001.")
+
+    import_result_parser = subparsers.add_parser(
+        "import-external-result",
+        help="Import an externally edited image and normalize it into the Step 3 raw contract.",
+    )
+    import_result_parser.add_argument("project_root", help="Path to the selected project folder.")
+    import_result_parser.add_argument("--page-id", required=True, help="Page id to import, e.g. 0001.")
+    import_result_parser.add_argument(
+        "--input",
+        required=True,
+        help="Path to the user-supplied external edit result.",
+    )
+
+    validate_step3_parser = subparsers.add_parser(
+        "validate-step3",
+        help="Run the Step 3 validation checks against the normalized raw external result.",
+    )
+    validate_step3_parser.add_argument("project_root", help="Path to the selected project folder.")
+    validate_step3_parser.add_argument("--page-id", required=True, help="Page id to validate, e.g. 0001.")
+
+    run_external_edit_parser = subparsers.add_parser(
+        "run-external-edit",
+        help="Run the Step 3 API automatic external edit flow.",
+    )
+    run_external_edit_parser.add_argument("project_root", help="Path to the selected project folder.")
+    run_external_edit_parser.add_argument("--page-id", required=True, help="Page id to process, e.g. 0001.")
 
     benchmark_parser = subparsers.add_parser(
         "benchmark-detectors",
@@ -130,6 +170,32 @@ def main(argv: list[str] | None = None) -> int:
             print(format_step2_report(report))
             return 0 if report.passed else 1
 
+        if args.command == "make-handoff":
+            result = make_handoff(project_root, args.page_id)
+            print("[OK] step3 handoff package created")
+            for key, value in result.items():
+                print(f"{key}: {value}")
+            return 0
+
+        if args.command == "import-external-result":
+            result = import_external_result(project_root, args.page_id, Path(args.input).resolve())
+            print("[OK] step3 external result import finished")
+            for key, value in result.items():
+                print(f"{key}: {value}")
+            return 0 if result["passed"] else 1
+
+        if args.command == "validate-step3":
+            report = validate_step3(project_root, args.page_id)
+            print(format_step3_report(report))
+            return 0 if report.passed else 1
+
+        if args.command == "run-external-edit":
+            result = run_external_edit(project_root, args.page_id)
+            print("[OK] step3 API execution finished")
+            for key, value in result.items():
+                print(f"{key}: {value}")
+            return 0 if result["passed"] else 1
+
         if args.command == "benchmark-detectors":
             page_ids = args.page_ids
             if not page_ids:
@@ -148,6 +214,9 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeDependencyError as exc:
         print(f"[ERROR] {exc}")
         return 2
+    except ValueError as exc:
+        print(f"[ERROR] {exc}")
+        return 1
     except FileNotFoundError as exc:
         print(f"[ERROR] {exc}")
         return 1

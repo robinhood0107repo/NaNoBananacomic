@@ -20,6 +20,12 @@ class ProjectTests(unittest.TestCase):
             saved = read_json(project_root / "project.json")
             self.assertEqual(saved["profile_mode"], "auto")
             self.assertEqual(saved["result_dir"], "result")
+            self.assertEqual(saved["nano_integration_mode"], "manual_web")
+            self.assertEqual(saved["nano_provider"], "gemini")
+            self.assertEqual(saved["nano_model"], "nano-banana-2")
+            self.assertEqual(saved["imports_dir"], "imports")
+            self.assertTrue((project_root / "imports" / "nano").exists())
+            self.assertTrue((project_root / "artifacts" / "handoff").exists())
 
     def test_scan_pages_registers_top_level_images(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -8,6 +8,8 @@ from comic_pipeline.types import PageManifest, ProjectManifest
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 PROJECT_SUBDIRS = [
+    "imports/nano",
+    "artifacts/handoff",
     "artifacts/masks",
     "artifacts/layers",
     "artifacts/nano",
