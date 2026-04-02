@@ -78,8 +78,38 @@ Phase 3 외부 연동은 아래 두 경로를 모두 허용한다.
 - 실제 API 키 평문은 `project.json`이나 `pages/*.page.json`에 저장하지 않는다.
 - 무료 웹 경로는 prompt package 생성과 수동 결과 가져오기를 정식 경로로 본다.
 - 수동 웹 결과는 GUI 파일 선택 또는 `imports/nano/` 붙여넣기로 수용한다.
+- 수동 웹 결과는 원본과 해상도나 캔버스 위치가 달라진 상태로 들어오는 것을 정상 입력으로 본다.
+- 로컬은 수동 import 결과를 원본 페이지 좌표계에 맞추는 책임을 가진다.
 
-### 3.4 GUI 자료의 위치
+### 3.4 수동 import 파일명 규칙
+
+`page_id`는 원본 파일명 stem과 같다.
+
+예:
+
+- `1.webp` -> `page_id = 1`
+- `K1466567_g2_144301.jpg` -> `page_id = K1466567_g2_144301`
+
+권장 파일명:
+
+- `<page_id>_submitted.png`
+
+허용 파일명:
+
+- `<page_id>.png`
+- `<page_id>.jpg`
+- `<page_id>.webp`
+- `<page_id>_submitted.<ext>`
+- `<page_id>_raw.<ext>`
+- `<page_id>_*.png`
+
+여러 파일이 동시에 있으면 탐색 우선순위는 아래다.
+
+1. `<page_id>_submitted.<ext>`
+2. `<page_id>_raw.<ext>`
+3. `<page_id>` 또는 `<page_id>_...` 로 시작하는 파일 중 최신 파일
+
+### 3.5 GUI 자료의 위치
 
 - `GUI_PLAN/`은 참고용 디자인 자료다.
 - 실제 구현은 `PySide6` 중심으로 진행한다.
