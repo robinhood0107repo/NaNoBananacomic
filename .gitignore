@@ -44,3 +44,5 @@ project.json
 
 # Common local logs
 *.log
+
+.env
