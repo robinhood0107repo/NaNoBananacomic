@@ -1,6 +1,7 @@
 # Repository exclusions
 legacy/
 GUI_PLAN/
+testmanga/
 
 # Local environments and vendored dependencies
 .venv/
