@@ -146,11 +146,7 @@ def summarize_step1_validation(
 def resolve_detector_name(page_profile: str, requested_name: str) -> str:
     if requested_name != "auto":
         return normalize_detector_name(requested_name)
-    if page_profile == "bw_manga":
-        return "manga109_seg_v1"
-    if page_profile in {"color_comic", "three_d_comic"}:
-        return "ogkalu_bubble_v1"
-    return "kitsumed_seg_v1"
+    return "manga109_seg_v1"
 
 
 def detect_page(project_root: Path, page_id: str, detector_name: str = "auto") -> dict:
