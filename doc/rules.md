@@ -65,7 +65,21 @@ Nano Banana 책임:
 - 식질
 - 말풍선 내부 인페이팅
 
-### 3.3 GUI 자료의 위치
+### 3.3 외부 연동 모드
+
+Phase 3 외부 연동은 아래 두 경로를 모두 허용한다.
+
+- 유료 API 자동 경로
+- 무료 웹 수동 경로
+
+규칙:
+
+- provider, model, API 입력은 GUI에서 받는다.
+- 실제 API 키 평문은 `project.json`이나 `pages/*.page.json`에 저장하지 않는다.
+- 무료 웹 경로는 prompt package 생성과 수동 결과 가져오기를 정식 경로로 본다.
+- 수동 웹 결과는 GUI 파일 선택 또는 `imports/nano/` 붙여넣기로 수용한다.
+
+### 3.4 GUI 자료의 위치
 
 - `GUI_PLAN/`은 참고용 디자인 자료다.
 - 실제 구현은 `PySide6` 중심으로 진행한다.
@@ -84,6 +98,7 @@ Nano Banana 책임:
 
 - `project.json`
 - `pages/*.page.json`
+- `imports/nano/*`
 - `artifacts/`
 - `logs/`
 - `result/`
