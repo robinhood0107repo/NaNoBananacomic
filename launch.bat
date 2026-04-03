@@ -3,7 +3,8 @@ setlocal EnableExtensions
 
 set "ROOT=%~dp0"
 set "VENV=%ROOT%.venv"
-set "PYTHONPATH=%ROOT%src;%ROOT%.vendor;%ROOT%.bootstrap"
+set "PYTHONPATH=%ROOT%src"
+set "COMIC_PIPELINE_DISABLE_LOCAL_VENDOR=1"
 set "LOGDIR=%ROOT%logs\launcher"
 
 if not exist "%LOGDIR%" mkdir "%LOGDIR%" >nul 2>nul
