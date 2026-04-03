@@ -19,6 +19,7 @@ if not defined STAMP (
   set "STAMP=%STAMP:,=-%"
 )
 set "LOGFILE=%LOGDIR%\launch_%STAMP%.log"
+set "GUILOG=%LOGDIR%\gui_%STAMP%.log"
 
 call :log INFO "NaNoBananacomic launcher started"
 call :log INFO "Repository root: %ROOT%"
@@ -51,7 +52,7 @@ if errorlevel 1 (
 
 if "%~1"=="" (
   call :log INFO "Launching NaNoBananacomic desktop app"
-  set "COMIC_PIPELINE_GUI_LOGFILE=%LOGFILE%"
+  set "COMIC_PIPELINE_GUI_LOGFILE=%GUILOG%"
   "%PY%" -m comic_pipeline.gui.app >> "%LOGFILE%" 2>&1
   if errorlevel 1 call :fail "GUI exited with an error. See the launcher log below."
   exit /b 0

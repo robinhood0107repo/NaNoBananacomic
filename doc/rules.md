@@ -296,7 +296,8 @@ Git에 올리는 대상:
 - `launch.bat`는 인자 없이 실행하면 로컬 `.venv`를 준비한 뒤 `PySide6` GUI를 실행한다.
 - `launch.bat <subcommand>` 형태는 기존 CLI를 그대로 실행한다.
 - `launch.bat` 실행 중 오류가 나면 콘솔을 자동으로 닫지 않고 `pause` 상태로 남긴다.
-- `launch.bat`와 GUI 시작 로그는 저장소 루트 `logs/launcher/launch_<timestamp>.log`에 남긴다.
+- `launch.bat` 로그는 `logs/launcher/launch_<timestamp>.log`에 남긴다.
+- GUI 시작 로그는 `logs/launcher/gui_<timestamp>.log`에 남긴다.
 - GUI 최근 프로젝트, 창 크기, 도킹 레이아웃은 `QSettings`에 저장한다.
 - API 키는 GUI 세션 메모리 또는 `GEMINI_API_KEY` 환경변수로만 사용하고, `project.json`에는 저장하지 않는다.
 
