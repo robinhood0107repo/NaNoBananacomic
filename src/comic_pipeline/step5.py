@@ -19,6 +19,8 @@ SEAM_BAND_DILATION_PIXELS = 2
 DIFF_THRESHOLD = 8
 WARNING_DIFF_RATIO = 0.001
 FAIL_DIFF_RATIO = 0.005
+MIN_MATCHED_RATIO = 0.80
+MIN_MEDIAN_BALLOON_IOU = 0.70
 
 
 def _require_step5_runtime() -> tuple[object, object]:
@@ -107,6 +109,12 @@ def summarize_step5_validation(
     registration_report_exists: bool,
     registration_score: float,
     registration_warning_level: str,
+    detector_alignment_mode: str,
+    matched_balloon_count: int,
+    reference_balloon_count: int,
+    matched_ratio: float,
+    median_balloon_iou: float,
+    unmatched_reference_balloon_ids: list[str],
     outside_mask_diff_pixels: int,
     outside_mask_region_pixels: int,
     outside_mask_diff_ratio: float,
@@ -127,6 +135,27 @@ def summarize_step5_validation(
             "registration summary: "
             f"level={registration_warning_level}, score={registration_score:.4f}"
         )
+    if detector_alignment_mode:
+        notes.append(
+            "detector balloon alignment summary: "
+            f"mode={detector_alignment_mode}, matched={matched_balloon_count}/{reference_balloon_count}, "
+            f"matched_ratio={matched_ratio:.4f}, median_iou={median_balloon_iou:.4f}"
+        )
+        if matched_ratio < MIN_MATCHED_RATIO:
+            notes.append(
+                "matched balloon ratio is below the minimum threshold: "
+                f"{matched_ratio:.4f} < {MIN_MATCHED_RATIO:.4f}"
+            )
+        if median_balloon_iou < MIN_MEDIAN_BALLOON_IOU:
+            notes.append(
+                "median balloon IoU is below the minimum threshold: "
+                f"{median_balloon_iou:.4f} < {MIN_MEDIAN_BALLOON_IOU:.4f}"
+            )
+        if unmatched_reference_balloon_ids:
+            notes.append(
+                "unmatched reference balloons remain after detector alignment: "
+                + ", ".join(unmatched_reference_balloon_ids)
+            )
     if outside_mask_diff_ratio > FAIL_DIFF_RATIO:
         notes.append(
             "outside-mask diff ratio exceeds the failure threshold: "
@@ -145,6 +174,9 @@ def summarize_step5_validation(
         and overlay_size_matches
         and registration_report_exists
         and registration_warning_level != "severe"
+        and (not detector_alignment_mode or matched_ratio >= MIN_MATCHED_RATIO)
+        and (not detector_alignment_mode or median_balloon_iou >= MIN_MEDIAN_BALLOON_IOU)
+        and (not detector_alignment_mode or not unmatched_reference_balloon_ids)
         and outside_mask_diff_ratio <= FAIL_DIFF_RATIO
     )
     if passed:
@@ -159,6 +191,12 @@ def summarize_step5_validation(
         registration_report_exists=registration_report_exists,
         registration_score=registration_score,
         registration_warning_level=registration_warning_level,
+        detector_alignment_mode=detector_alignment_mode,
+        matched_balloon_count=matched_balloon_count,
+        reference_balloon_count=reference_balloon_count,
+        matched_ratio=matched_ratio,
+        median_balloon_iou=median_balloon_iou,
+        unmatched_reference_balloon_ids=unmatched_reference_balloon_ids,
         outside_mask_diff_pixels=outside_mask_diff_pixels,
         outside_mask_region_pixels=outside_mask_region_pixels,
         outside_mask_diff_ratio=outside_mask_diff_ratio,
@@ -190,11 +228,25 @@ def validate_step5(project_root: Path, page_id: str) -> Step5ValidationReport:
     outside_mask_diff_ratio = 0.0
     registration_score = 0.0
     registration_warning_level = "severe" if not registration_report_exists else "normal"
+    detector_alignment_mode = ""
+    matched_balloon_count = 0
+    reference_balloon_count = 0
+    matched_ratio = 0.0
+    median_balloon_iou = 0.0
+    unmatched_reference_balloon_ids: list[str] = []
 
     if registration_report_exists:
         registration_payload = read_json(registration_path)
         registration_score = float(registration_payload.get("final_score", 0.0))
         registration_warning_level = str(registration_payload.get("warning_level", "severe"))
+        detector_alignment_mode = str(registration_payload.get("detector_alignment_mode", ""))
+        matched_balloon_count = int(registration_payload.get("matched_balloon_count", 0))
+        reference_balloon_count = int(registration_payload.get("reference_balloon_count", 0))
+        matched_ratio = float(registration_payload.get("matched_ratio", 0.0))
+        median_balloon_iou = float(registration_payload.get("median_balloon_iou", 0.0))
+        unmatched_reference_balloon_ids = list(
+            registration_payload.get("unmatched_reference_balloon_ids", [])
+        )
 
     final_image = None
     overlay = None
@@ -237,6 +289,12 @@ def validate_step5(project_root: Path, page_id: str) -> Step5ValidationReport:
         registration_report_exists=registration_report_exists,
         registration_score=registration_score,
         registration_warning_level=registration_warning_level,
+        detector_alignment_mode=detector_alignment_mode,
+        matched_balloon_count=matched_balloon_count,
+        reference_balloon_count=reference_balloon_count,
+        matched_ratio=matched_ratio,
+        median_balloon_iou=median_balloon_iou,
+        unmatched_reference_balloon_ids=unmatched_reference_balloon_ids,
         outside_mask_diff_pixels=outside_mask_diff_pixels,
         outside_mask_region_pixels=outside_mask_region_pixels,
         outside_mask_diff_ratio=outside_mask_diff_ratio,

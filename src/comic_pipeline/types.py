@@ -176,6 +176,15 @@ class RegistrationReport:
     output_width: int
     output_height: int
     transform_matrix: list[list[float]]
+    detector_alignment_mode: str = ""
+    reference_balloon_count: int = 0
+    import_balloon_count: int = 0
+    matched_balloon_count: int = 0
+    matched_ratio: float = 0.0
+    median_balloon_iou: float = 0.0
+    unmatched_reference_balloon_ids: list[str] = field(default_factory=list)
+    unmatched_import_balloon_ids: list[str] = field(default_factory=list)
+    local_refine_applied_count: int = 0
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -195,6 +204,12 @@ class Step5ValidationReport:
     outside_mask_diff_pixels: int
     outside_mask_region_pixels: int
     outside_mask_diff_ratio: float
+    detector_alignment_mode: str = ""
+    matched_balloon_count: int = 0
+    reference_balloon_count: int = 0
+    matched_ratio: float = 0.0
+    median_balloon_iou: float = 0.0
+    unmatched_reference_balloon_ids: list[str] = field(default_factory=list)
     passed: bool = False
     notes: list[str] = field(default_factory=list)
 
@@ -212,6 +227,9 @@ class Step6ValidationReport:
     severe_registration_pages: list[str]
     outside_mask_diff_pages: list[str]
     page_summaries: list[dict[str, Any]]
+    low_balloon_match_pages: list[str] = field(default_factory=list)
+    unmatched_balloon_pages: list[str] = field(default_factory=list)
+    balloon_match_summary: list[dict[str, Any]] = field(default_factory=list)
     passed: bool = False
     notes: list[str] = field(default_factory=list)
 

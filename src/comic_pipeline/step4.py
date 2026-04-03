@@ -14,7 +14,7 @@ from comic_pipeline.project import (
     save_project_manifest,
     write_json,
 )
-from comic_pipeline.registration import align_source_to_page
+from comic_pipeline.registration import align_source_to_page, refine_aligned_image_with_detector
 from comic_pipeline.types import RuntimeDependencyError, Step4ValidationReport
 
 
@@ -529,6 +529,7 @@ def validate_step4(project_root: Path, page_id: str) -> Step4ValidationReport:
             project_root,
             page_id,
             source_kind=page_manifest.nano_source_kind,
+            source_mode=page_manifest.step4_source_mode,
             readable_image=False,
             notes=["restored RGBA output is unreadable"],
         )
@@ -583,6 +584,27 @@ def validate_step4(project_root: Path, page_id: str) -> Step4ValidationReport:
         checkerboard_cleaned_pixels=page_manifest.step4_checkerboard_cleaned_pixels,
         checkerboard_boundary_restored_pixels=page_manifest.step4_checkerboard_boundary_restored_pixels,
     )
+    if page_manifest.registration_report_path:
+        registration_path = project_root / page_manifest.registration_report_path
+        if registration_path.exists():
+            registration_payload = read_json(registration_path)
+            detector_alignment_mode = str(registration_payload.get("detector_alignment_mode", ""))
+            matched_balloon_count = int(registration_payload.get("matched_balloon_count", 0))
+            reference_balloon_count = int(registration_payload.get("reference_balloon_count", 0))
+            median_balloon_iou = float(registration_payload.get("median_balloon_iou", 0.0))
+            matched_ratio = float(registration_payload.get("matched_ratio", 0.0))
+            unmatched_reference_ids = list(registration_payload.get("unmatched_reference_balloon_ids", []))
+            if detector_alignment_mode:
+                report.notes.append(
+                    "detector balloon alignment: "
+                    f"mode={detector_alignment_mode}, matched={matched_balloon_count}/{reference_balloon_count}, "
+                    f"matched_ratio={matched_ratio:.4f}, median_iou={median_balloon_iou:.4f}"
+                )
+            if unmatched_reference_ids:
+                report.notes.append(
+                    "detector alignment left unmatched reference balloons: "
+                    + ", ".join(unmatched_reference_ids)
+                )
     return _save_step4_report(project_root, page_id, report)
 
 
@@ -614,7 +636,16 @@ def restore_alpha(project_root: Path, page_id: str) -> dict[str, Any]:
             original_image=context["original_image"],
             union_mask=context["union_mask"],
         )
-        raw_image = cleaned_raw_image
+        raw_image, registration_report = refine_aligned_image_with_detector(
+            project_root=project_root,
+            page_id=page_id,
+            aligned_image=cleaned_raw_image,
+            registration_report=registration_report,
+        )
+        report_path = project_root / (
+            page_manifest.registration_report_path or f"artifacts/debug/{page_id}_registration.json"
+        )
+        write_json(report_path, registration_report.to_dict())
         if not cv2.imwrite(str(raw_output_path), raw_image):
             raise OSError(f"Unable to write normalized Step 4 raw image: {raw_output_path}")
 

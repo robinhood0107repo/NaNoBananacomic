@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -17,8 +18,20 @@ from comic_pipeline.registration import (
     align_source_to_page,
     compute_scale_translation_matrix,
     estimate_support_from_image,
+    refine_aligned_image_with_detector,
 )
+from comic_pipeline.project import load_page_manifest
+from comic_pipeline.types import BalloonPrediction, RegistrationReport
 from step3_test_utils import build_phase2_ready_page
+
+
+class _StaticDetector:
+    def __init__(self, predictions: list[BalloonPrediction]) -> None:
+        self.name = "manga109_seg_v1"
+        self._predictions = predictions
+
+    def predict(self, image: object) -> list[BalloonPrediction]:
+        return list(self._predictions)
 
 
 class RegistrationTests(unittest.TestCase):
@@ -79,6 +92,103 @@ class RegistrationTests(unittest.TestCase):
 
             self.assertTrue((project_root / "artifacts" / "previews" / "0001_registration_overlay.png").exists())
             self.assertGreaterEqual(report.final_score, report.initial_score)
+
+    def test_refine_aligned_image_with_detector_updates_balloon_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase2_ready_page(project_root)
+            page_manifest = load_page_manifest(project_root, "0001")
+
+            aligned = np.full((240, 180, 3), 255, dtype=np.uint8)
+            cv2.rectangle(aligned, (68, 80), (122, 120), (70, 70, 70), -1)
+
+            shifted_prediction = BalloonPrediction(
+                bbox_xyxy=[62, 70, 150, 158],
+                polygon=[[62, 97], [70, 76], [94, 70], [128, 76], [150, 112], [98, 158], [90, 131]],
+                area=5200.0,
+                confidence=0.99,
+                model_name="manga109_seg_v1",
+            )
+            report = RegistrationReport(
+                page_id="0001",
+                source_kind="manual_web",
+                reference_source="balloons_only_rgba_alpha",
+                moving_support_source="bright_threshold_fallback",
+                source_size_matches=True,
+                alignment_applied=True,
+                method_used="support_scale_translation",
+                initial_score=0.4,
+                refined_score=0.45,
+                final_score=0.45,
+                warning_level="severe",
+                source_width=180,
+                source_height=240,
+                output_width=180,
+                output_height=240,
+                transform_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            )
+
+            with mock.patch(
+                "comic_pipeline.registration.build_detector",
+                return_value=_StaticDetector([shifted_prediction]),
+            ):
+                refined, updated_report = refine_aligned_image_with_detector(
+                    project_root=project_root,
+                    page_id="0001",
+                    aligned_image=aligned,
+                    registration_report=report,
+                )
+
+            self.assertEqual(updated_report.detector_alignment_mode, "manga109_seg_v1")
+            self.assertEqual(updated_report.reference_balloon_count, 1)
+            self.assertEqual(updated_report.import_balloon_count, 1)
+            self.assertEqual(updated_report.matched_balloon_count, 1)
+            self.assertAlmostEqual(updated_report.matched_ratio, 1.0)
+            self.assertGreater(updated_report.median_balloon_iou, 0.70)
+            self.assertGreaterEqual(updated_report.local_refine_applied_count, 1)
+            self.assertEqual(updated_report.warning_level, "normal")
+            self.assertFalse(np.array_equal(refined, aligned))
+            self.assertIn("detector-based balloon refinement used", " ".join(updated_report.notes))
+
+    def test_refine_aligned_image_with_detector_falls_back_when_import_has_no_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase2_ready_page(project_root)
+            aligned = np.full((240, 180, 3), 255, dtype=np.uint8)
+            report = RegistrationReport(
+                page_id="0001",
+                source_kind="manual_web",
+                reference_source="balloons_only_rgba_alpha",
+                moving_support_source="bright_threshold_fallback",
+                source_size_matches=True,
+                alignment_applied=True,
+                method_used="support_scale_translation",
+                initial_score=0.4,
+                refined_score=0.45,
+                final_score=0.45,
+                warning_level="warning",
+                source_width=180,
+                source_height=240,
+                output_width=180,
+                output_height=240,
+                transform_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            )
+
+            with mock.patch(
+                "comic_pipeline.registration.build_detector",
+                return_value=_StaticDetector([]),
+            ):
+                refined, updated_report = refine_aligned_image_with_detector(
+                    project_root=project_root,
+                    page_id="0001",
+                    aligned_image=aligned,
+                    registration_report=report,
+                )
+
+            self.assertTrue(np.array_equal(refined, aligned))
+            self.assertEqual(updated_report.matched_balloon_count, 0)
+            self.assertEqual(updated_report.warning_level, "severe")
+            self.assertIn("found no balloons", " ".join(updated_report.notes))
 
 
 if __name__ == "__main__":

@@ -73,6 +73,28 @@ class Step5CompositeTests(unittest.TestCase):
             self.assertFalse(report.passed)
             self.assertGreater(report.outside_mask_diff_ratio, 0.005)
 
+    def test_validate_step5_marks_check_for_low_detector_balloon_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase4_ready_page(project_root)
+
+            page_manifest = load_page_manifest(project_root, "0001")
+            registration_path = project_root / page_manifest.registration_report_path
+            payload = read_json(registration_path)
+            payload["detector_alignment_mode"] = "manga109_seg_v1"
+            payload["reference_balloon_count"] = 1
+            payload["matched_balloon_count"] = 1
+            payload["matched_ratio"] = 0.65
+            payload["median_balloon_iou"] = 0.62
+            payload["unmatched_reference_balloon_ids"] = []
+            registration_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+            report = validate_step5(project_root, "0001")
+
+            self.assertFalse(report.passed)
+            self.assertEqual(report.detector_alignment_mode, "manga109_seg_v1")
+            self.assertLess(report.matched_ratio, 0.80)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -62,6 +62,14 @@ def _collect_page_summary(project_root: Path, page_id: str) -> dict[str, Any]:
     step5_diff_ratio = float(step5_report.get("outside_mask_diff_ratio", 0.0)) if step5_report else 0.0
     registration_warning_level = str(registration_report.get("warning_level", "missing")) if registration_report else "missing"
     registration_score = float(registration_report.get("final_score", 0.0)) if registration_report else 0.0
+    detector_alignment_mode = str(registration_report.get("detector_alignment_mode", "")) if registration_report else ""
+    matched_ratio = float(registration_report.get("matched_ratio", 0.0)) if registration_report else 0.0
+    median_balloon_iou = float(registration_report.get("median_balloon_iou", 0.0)) if registration_report else 0.0
+    unmatched_reference_balloon_ids = list(
+        registration_report.get("unmatched_reference_balloon_ids", [])
+    ) if registration_report else []
+    matched_balloon_count = int(registration_report.get("matched_balloon_count", 0)) if registration_report else 0
+    reference_balloon_count = int(registration_report.get("reference_balloon_count", 0)) if registration_report else 0
     step3_passed = bool(step3_report and step3_report.get("passed")) or manual_step3_passthrough
 
     passed = (
@@ -80,6 +88,12 @@ def _collect_page_summary(project_root: Path, page_id: str) -> dict[str, Any]:
         "missing_artifacts": missing_artifacts,
         "registration_warning_level": registration_warning_level,
         "registration_score": registration_score,
+        "detector_alignment_mode": detector_alignment_mode,
+        "matched_ratio": matched_ratio,
+        "median_balloon_iou": median_balloon_iou,
+        "matched_balloon_count": matched_balloon_count,
+        "reference_balloon_count": reference_balloon_count,
+        "unmatched_reference_balloon_ids": unmatched_reference_balloon_ids,
         "outside_mask_diff_ratio": step5_diff_ratio,
         "step1_passed": bool(step1_report and step1_report.get("passed")),
         "step2_passed": bool(step2_report and step2_report.get("passed")),
@@ -123,6 +137,33 @@ def validate_step6(
         for item in page_summaries
         if item["outside_mask_diff_ratio"] > 0.005
     ]
+    low_balloon_match_pages = [
+        item["page_id"]
+        for item in page_summaries
+        if item["detector_alignment_mode"]
+        and (
+            item["matched_ratio"] < 0.80
+            or item["median_balloon_iou"] < 0.70
+        )
+    ]
+    unmatched_balloon_pages = [
+        item["page_id"]
+        for item in page_summaries
+        if item["unmatched_reference_balloon_ids"]
+    ]
+    balloon_match_summary = [
+        {
+            "page_id": item["page_id"],
+            "mode": item["detector_alignment_mode"],
+            "matched_balloon_count": item["matched_balloon_count"],
+            "reference_balloon_count": item["reference_balloon_count"],
+            "matched_ratio": item["matched_ratio"],
+            "median_balloon_iou": item["median_balloon_iou"],
+            "unmatched_reference_balloon_ids": item["unmatched_reference_balloon_ids"],
+        }
+        for item in page_summaries
+        if item["detector_alignment_mode"]
+    ]
     notes: list[str] = []
     if missing_artifact_pages:
         notes.append(f"missing artifacts were detected for {len(missing_artifact_pages)} page(s)")
@@ -130,6 +171,10 @@ def validate_step6(
         notes.append(f"severe registration warnings were detected for {len(severe_registration_pages)} page(s)")
     if outside_mask_diff_pages:
         notes.append(f"outside-mask diff failures were detected for {len(outside_mask_diff_pages)} page(s)")
+    if low_balloon_match_pages:
+        notes.append(f"low balloon match coverage was detected for {len(low_balloon_match_pages)} page(s)")
+    if unmatched_balloon_pages:
+        notes.append(f"unmatched reference balloons remain for {len(unmatched_balloon_pages)} page(s)")
 
     report = Step6ValidationReport(
         scope="all" if validate_all else "page",
@@ -140,6 +185,9 @@ def validate_step6(
         severe_registration_pages=severe_registration_pages,
         outside_mask_diff_pages=outside_mask_diff_pages,
         page_summaries=page_summaries,
+        low_balloon_match_pages=low_balloon_match_pages,
+        unmatched_balloon_pages=unmatched_balloon_pages,
+        balloon_match_summary=balloon_match_summary,
         passed=(not check_pages),
         notes=notes,
     )

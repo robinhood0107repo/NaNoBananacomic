@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +16,16 @@ from comic_pipeline.project import create_project, load_page_manifest, save_page
 from comic_pipeline.step1 import validate_step1
 from comic_pipeline.step3 import import_external_result
 from comic_pipeline.step4 import restore_alpha
+from comic_pipeline.types import BalloonPrediction
+
+
+class _StaticDetector:
+    def __init__(self, predictions: list[BalloonPrediction]) -> None:
+        self.name = "manga109_seg_v1"
+        self._predictions = predictions
+
+    def predict(self, image: object) -> list[BalloonPrediction]:
+        return list(self._predictions)
 
 
 def build_phase2_ready_page(project_root: Path, page_id: str = "0001") -> None:
@@ -113,6 +124,21 @@ def build_phase4_ready_page(
     if not imported["passed"]:
         raise AssertionError("Step 3 setup failed in test helper")
 
-    restored = restore_alpha(project_root, page_id)
+    page_manifest = load_page_manifest(project_root, page_id)
+    fake_predictions = [
+        BalloonPrediction(
+            bbox_xyxy=item["bbox_xyxy"],
+            polygon=item["polygon"],
+            area=float(item.get("area", 0.0)),
+            confidence=float(item.get("confidence", 0.0)),
+            model_name="manga109_seg_v1",
+        )
+        for item in page_manifest.balloons
+    ]
+    with mock.patch(
+        "comic_pipeline.registration.build_detector",
+        return_value=_StaticDetector(fake_predictions),
+    ):
+        restored = restore_alpha(project_root, page_id)
     if not restored["passed"]:
         raise AssertionError("Step 4 setup failed in test helper")

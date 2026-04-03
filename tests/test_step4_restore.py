@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -16,7 +17,35 @@ import numpy as np  # type: ignore[import-not-found]
 from comic_pipeline.project import load_page_manifest, read_json, save_page_manifest
 from comic_pipeline.step3 import import_external_result
 from comic_pipeline.step4 import restore_alpha, validate_step4
+from comic_pipeline.types import BalloonPrediction
 from step3_test_utils import build_phase2_ready_page
+
+
+class _StaticDetector:
+    def __init__(self, predictions: list[BalloonPrediction]) -> None:
+        self.name = "manga109_seg_v1"
+        self._predictions = predictions
+
+    def predict(self, image: object) -> list[BalloonPrediction]:
+        return list(self._predictions)
+
+
+def _detector_patch(project_root: Path, page_id: str) -> mock._patch:
+    page_manifest = load_page_manifest(project_root, page_id)
+    predictions = [
+        BalloonPrediction(
+            bbox_xyxy=item["bbox_xyxy"],
+            polygon=item["polygon"],
+            area=float(item.get("area", 0.0)),
+            confidence=float(item.get("confidence", 0.0)),
+            model_name="manga109_seg_v1",
+        )
+        for item in page_manifest.balloons
+    ]
+    return mock.patch(
+        "comic_pipeline.registration.build_detector",
+        return_value=_StaticDetector(predictions),
+    )
 
 
 class Step4RestoreTests(unittest.TestCase):
@@ -42,7 +71,8 @@ class Step4RestoreTests(unittest.TestCase):
             imported = import_external_result(project_root, "0001", input_path)
             self.assertTrue(imported["passed"])
 
-            result = restore_alpha(project_root, "0001")
+            with _detector_patch(project_root, "0001"):
+                result = restore_alpha(project_root, "0001")
             report = validate_step4(project_root, "0001")
             page_manifest = load_page_manifest(project_root, "0001")
             restored = cv2.imread(
@@ -78,7 +108,8 @@ class Step4RestoreTests(unittest.TestCase):
             manual_path = project_root / "imports" / "nano" / "0001_balloons_only.png"
             cv2.imwrite(str(manual_path), manual)
 
-            result = restore_alpha(project_root, "0001")
+            with _detector_patch(project_root, "0001"):
+                result = restore_alpha(project_root, "0001")
             report = validate_step4(project_root, "0001")
             page_manifest = load_page_manifest(project_root, "0001")
 
@@ -125,7 +156,8 @@ class Step4RestoreTests(unittest.TestCase):
             page_manifest.nano_banana_raw_path = "artifacts/nano/0001_raw.png"
             save_page_manifest(project_root, page_manifest)
 
-            result = restore_alpha(project_root, "0001")
+            with _detector_patch(project_root, "0001"):
+                result = restore_alpha(project_root, "0001")
             updated_manifest = load_page_manifest(project_root, "0001")
             updated_raw = cv2.imread(
                 str(project_root / updated_manifest.nano_banana_raw_path),
@@ -161,7 +193,8 @@ class Step4RestoreTests(unittest.TestCase):
             manual_path = project_root / "imports" / "nano" / "0001_result.png"
             cv2.imwrite(str(manual_path), manual)
 
-            result = restore_alpha(project_root, "0001")
+            with _detector_patch(project_root, "0001"):
+                result = restore_alpha(project_root, "0001")
             report = validate_step4(project_root, "0001")
             page_manifest = load_page_manifest(project_root, "0001")
             cleaned_raw = cv2.imread(
@@ -177,6 +210,28 @@ class Step4RestoreTests(unittest.TestCase):
             self.assertGreaterEqual(int(cleaned_raw[80, 72, 0]), 245)
             self.assertGreaterEqual(int(cleaned_raw[80, 72, 1]), 245)
             self.assertGreaterEqual(int(cleaned_raw[80, 72, 2]), 245)
+
+    def test_restore_alpha_records_detector_alignment_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase2_ready_page(project_root)
+
+            manual = np.full((240, 180, 3), 245, dtype=np.uint8)
+            cv2.ellipse(manual, (96, 97), (34, 22), 0, 0, 360, (180, 180, 180), -1)
+            manual_path = project_root / "imports" / "nano" / "0001_submitted.png"
+            cv2.imwrite(str(manual_path), manual)
+
+            with _detector_patch(project_root, "0001"):
+                result = restore_alpha(project_root, "0001")
+            report = validate_step4(project_root, "0001")
+            page_manifest = load_page_manifest(project_root, "0001")
+            registration_payload = read_json(project_root / page_manifest.registration_report_path)
+
+            self.assertTrue(result["passed"])
+            self.assertEqual(registration_payload["detector_alignment_mode"], "manga109_seg_v1")
+            self.assertEqual(registration_payload["matched_balloon_count"], 1)
+            self.assertAlmostEqual(float(registration_payload["matched_ratio"]), 1.0)
+            self.assertIn("detector balloon alignment", " ".join(report.notes))
 
 
 if __name__ == "__main__":
