@@ -303,7 +303,10 @@ def _preserve_manual_import(project_root: Path, page_id: str, input_path: Path) 
     imports_dir.mkdir(parents=True, exist_ok=True)
     suffix = input_path.suffix.lower() or ".png"
     destination = imports_dir / f"{page_id}_submitted{suffix}"
-    shutil.copy2(input_path, destination)
+    source_path = input_path.resolve()
+    destination_path = destination.resolve()
+    if source_path != destination_path:
+        shutil.copy2(source_path, destination)
     page_manifest = load_page_manifest(project_root, page_id)
     page_manifest.nano_manual_import_path = _as_relative(project_root, destination)
     save_page_manifest(project_root, page_manifest)

@@ -94,6 +94,24 @@ class Step3ManualTests(unittest.TestCase):
             self.assertTrue((project_root / page_manifest.nano_banana_raw_path).exists())
             self.assertIn("aligned in Phase 4", " ".join(report_payload["notes"]))
 
+    def test_import_external_result_accepts_existing_submitted_file_without_copy_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase2_ready_page(project_root)
+
+            submitted = np.full((240, 180, 3), 240, dtype=np.uint8)
+            input_path = project_root / "imports" / "nano" / "0001_submitted.png"
+            cv2.imwrite(str(input_path), submitted)
+
+            result = import_external_result(project_root, "0001", input_path)
+            report = validate_step3(project_root, "0001")
+            page_manifest = load_page_manifest(project_root, "0001")
+
+            self.assertTrue(result["passed"])
+            self.assertTrue(report.passed)
+            self.assertEqual(page_manifest.nano_manual_import_path, "imports/nano/0001_submitted.png")
+            self.assertTrue((project_root / page_manifest.nano_banana_raw_path).exists())
+
 
 if __name__ == "__main__":
     unittest.main()
