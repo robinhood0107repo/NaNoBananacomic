@@ -2,38 +2,52 @@
 setlocal
 
 set "ROOT=%~dp0"
+set "VENV=%ROOT%.venv"
 set "PYTHONPATH=%ROOT%src;%ROOT%.vendor;%ROOT%.bootstrap"
 
-where python >nul 2>nul
-if errorlevel 1 (
-  echo [ERROR] Python is not available on PATH.
-  echo Install Python 3.12 first, then run launch.bat again.
+if not exist "%VENV%\Scripts\python.exe" (
+  echo [INFO] Creating local virtual environment...
+  where py >nul 2>nul
+  if not errorlevel 1 (
+    py -3.12 -m venv "%VENV%"
+  ) else (
+    where python >nul 2>nul
+    if errorlevel 1 (
+      echo [ERROR] Python 3.12 was not found.
+      echo Install Python 3.12 for Windows, then run launch.bat again.
+      exit /b 1
+    )
+    python -m venv "%VENV%"
+  )
+)
+
+set "PY=%VENV%\Scripts\python.exe"
+set "PYW=%VENV%\Scripts\pythonw.exe"
+
+if not exist "%PY%" (
+  echo [ERROR] Local virtual environment is incomplete: "%PY%"
   exit /b 1
 )
 
+"%PY%" -c "import PySide6, cv2, numpy, PIL" >nul 2>nul
+if errorlevel 1 (
+  echo [INFO] Installing runtime dependencies...
+  "%PY%" -m pip install -r "%ROOT%requirements.txt"
+  if errorlevel 1 (
+    echo [ERROR] Failed to install runtime dependencies.
+    exit /b 1
+  )
+)
+
 if "%~1"=="" (
-  echo NaNoBananacomic launcher
-  echo.
-  echo This repository currently exposes Step 1, Step 2, Step 3, and Step 4 CLI workflows.
-  echo.
-  echo Example commands:
-  echo   launch.bat init-project ^<PROJECT_FOLDER^>
-  echo   launch.bat scan-pages ^<PROJECT_FOLDER^>
-  echo   launch.bat detect ^<PROJECT_FOLDER^> --page-id 0001
-  echo   launch.bat validate-step1 ^<PROJECT_FOLDER^> --page-id 0001
-  echo   launch.bat make-layer ^<PROJECT_FOLDER^> --page-id 0001
-  echo   launch.bat make-handoff ^<PROJECT_FOLDER^> --page-id 0001
-  echo   launch.bat import-external-result ^<PROJECT_FOLDER^> --page-id 0001 --input ^<RESULT_IMAGE^>
-  echo   launch.bat validate-step3 ^<PROJECT_FOLDER^> --page-id 0001
-  echo   launch.bat run-external-edit ^<PROJECT_FOLDER^> --page-id 0001
-  echo   launch.bat restore-alpha ^<PROJECT_FOLDER^> --page-id 0001
-  echo   launch.bat validate-step4 ^<PROJECT_FOLDER^> --page-id 0001
-  echo.
-  echo Note:
-  echo   Step 3 API mode uses the GEMINI_API_KEY environment variable or a future GUI session key.
-  python -m comic_pipeline --help
+  echo [INFO] Launching NaNoBananacomic desktop app...
+  if exist "%PYW%" (
+    start "" "%PYW%" -m comic_pipeline.gui.app
+    exit /b 0
+  )
+  "%PY%" -m comic_pipeline.gui.app
   exit /b %errorlevel%
 )
 
-python -m comic_pipeline %*
+"%PY%" -m comic_pipeline %*
 exit /b %errorlevel%

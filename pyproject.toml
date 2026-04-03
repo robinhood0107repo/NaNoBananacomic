@@ -12,6 +12,7 @@ dependencies = [
   "numpy>=2.0,<3.0",
   "opencv-python>=4.10,<5.0",
   "pillow>=10.0,<11.0",
+  "PySide6>=6.8,<7.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,7 @@ step1-models = [
 
 [project.scripts]
 comic-pipeline = "comic_pipeline.cli:main"
+comic-pipeline-gui = "comic_pipeline.gui.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/comic_pipeline"]

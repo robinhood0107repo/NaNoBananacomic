@@ -96,18 +96,33 @@ Phase 3 외부 연동은 아래 두 경로를 모두 허용한다.
 
 허용 파일명:
 
+- `<page_id>.<ext>`
 - `<page_id>.png`
 - `<page_id>.jpg`
 - `<page_id>.webp`
 - `<page_id>_submitted.<ext>`
+- `<page_id>_translated.<ext>`
+- `<page_id>_result.<ext>`
+- `<page_id>_output.<ext>`
+- `<page_id>_edited.<ext>`
+- `<page_id>_web.<ext>`
+- `<page_id>_nano.<ext>`
+- `<page_id>_final.<ext>`
+- `<page_id>_balloons_only.<ext>`
 - `<page_id>_raw.<ext>`
 - `<page_id>_*.png`
+- `<page_id>-*.png`
+- `<page_id> *.png`
+
+실제 탐색은 확장자를 엄격히 제한하지 않는다. 파일명이 `page_id` 자체이거나 `page_id_`, `page_id-`, `page_id `로 시작하면 공통 이미지 파일로 간주해 후보로 본다.
 
 여러 파일이 동시에 있으면 탐색 우선순위는 아래다.
 
 1. `<page_id>_submitted.<ext>`
-2. `<page_id>_raw.<ext>`
-3. `<page_id>` 또는 `<page_id>_...` 로 시작하는 파일 중 최신 파일
+2. `<page_id>_translated`, `<page_id>_result`, `<page_id>_output`, `<page_id>_edited`, `<page_id>_web`, `<page_id>_nano`, `<page_id>_final`, `<page_id>_balloons_only`
+3. `<page_id>_raw.<ext>`
+4. `<page_id>` 자체 파일
+5. 그 외 `page_id` prefix 후보 중 최신 파일
 
 ### 3.5 GUI 자료의 위치
 
@@ -276,8 +291,12 @@ Git에 올리는 대상:
 ### 7.3 환경/실행 규칙
 
 - 표준 Python 버전은 `3.12.x`
-- 표준 개발 실행은 `uv run ...`
-- Windows 사용자 진입점은 `launch.bat`
+- WSL/Linux 개발 실행은 `uv run ...` 또는 프로젝트 가상환경 Python 사용을 허용한다.
+- Windows 사용자 진입점은 `launch.bat`다.
+- `launch.bat`는 인자 없이 실행하면 로컬 `.venv`를 준비한 뒤 `PySide6` GUI를 실행한다.
+- `launch.bat <subcommand>` 형태는 기존 CLI를 그대로 실행한다.
+- GUI 최근 프로젝트, 창 크기, 도킹 레이아웃은 `QSettings`에 저장한다.
+- API 키는 GUI 세션 메모리 또는 `GEMINI_API_KEY` 환경변수로만 사용하고, `project.json`에는 저장하지 않는다.
 
 향후 lockfile을 도입하면 원칙은 아래와 같다.
 
