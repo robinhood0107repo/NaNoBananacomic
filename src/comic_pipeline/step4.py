@@ -83,6 +83,7 @@ def _load_step4_context(project_root: Path, page_id: str) -> dict[str, Any]:
         "page_manifest": page_manifest,
         "expected_size": (page_manifest.width, page_manifest.height),
         "union_mask": union_mask,
+        "original_image": original_image,
         "original_path": original_path,
     }
 
@@ -212,10 +213,137 @@ def _compose_restored_rgba(raw_image: Any, restored_alpha: Any) -> Any:
     return restored
 
 
+def _classify_step4_source_mode(raw_image: Any, union_mask: Any) -> str:
+    cv2, np = _require_step4_runtime()
+    if raw_image.ndim == 3 and raw_image.shape[2] == 4:
+        alpha = raw_image[:, :, 3]
+        if int(np.count_nonzero(alpha < 250)) > 0:
+            return "transparent_layer"
+
+    raw_rgb = _to_rgb(raw_image)
+    binary_mask = np.where(union_mask > 0, 255, 0).astype(np.uint8)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
+    expanded_support = cv2.dilate(binary_mask, kernel, iterations=1) > 0
+    outside_support = ~expanded_support
+    outside_pixels = int(np.count_nonzero(outside_support))
+    if outside_pixels <= 0:
+        return "opaque_balloon_canvas"
+
+    outside_nonblack = int(
+        np.count_nonzero(np.any(raw_rgb[outside_support] > 12, axis=1))
+    )
+    if (outside_nonblack / float(outside_pixels)) > 0.10:
+        return "opaque_full_page"
+    return "opaque_balloon_canvas"
+
+
+def _retain_large_components(mask: Any, *, min_area: int) -> Any:
+    cv2, np = _require_step4_runtime()
+    mask_u8 = np.where(mask, 255, 0).astype(np.uint8)
+    component_count, labels, stats, _ = cv2.connectedComponentsWithStats(mask_u8, connectivity=8)
+    filtered = np.zeros_like(mask_u8)
+    for label in range(1, component_count):
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        if area >= min_area:
+            filtered[labels == label] = 255
+    return filtered > 0
+
+
+def _build_checkerboard_candidate(
+    raw_rgb: Any,
+    allowed_mask: Any,
+    *,
+    min_gray: int,
+    max_gray: int,
+    exclude_dark_neighbors: bool,
+) -> Any:
+    cv2, np = _require_step4_runtime()
+    gray = cv2.cvtColor(raw_rgb, cv2.COLOR_BGR2GRAY)
+    channel_max = raw_rgb.max(axis=2)
+    channel_min = raw_rgb.min(axis=2)
+    candidate = (
+        allowed_mask
+        & ((channel_max - channel_min) <= 10)
+        & (gray >= min_gray)
+        & (gray <= max_gray)
+    )
+    if exclude_dark_neighbors:
+        dark_mask = np.where(gray < 110, 255, 0).astype(np.uint8)
+        dark_neighbors = cv2.dilate(
+            dark_mask,
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+            iterations=1,
+        ) > 0
+        candidate &= ~dark_neighbors
+    min_area = max(9, int(0.00005 * gray.shape[0] * gray.shape[1]))
+    return _retain_large_components(candidate, min_area=min_area)
+
+
+def _cleanup_checkerboard_contamination(
+    *,
+    raw_image: Any,
+    original_image: Any,
+    union_mask: Any,
+) -> tuple[Any, dict[str, Any]]:
+    cv2, np = _require_step4_runtime()
+    source_mode = _classify_step4_source_mode(raw_image, union_mask)
+    summary = {
+        "source_mode": source_mode,
+        "cleanup_applied": False,
+        "cleaned_pixels": 0,
+        "boundary_restored_pixels": 0,
+    }
+    if source_mode == "transparent_layer":
+        return raw_image, summary
+
+    raw_rgb = _to_rgb(raw_image).copy()
+    original_rgb = _to_rgb(original_image)
+    binary_mask = np.where(union_mask > 0, 255, 0).astype(np.uint8)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    inner_core = cv2.erode(binary_mask, kernel, iterations=1) > 0
+    border_ring = (binary_mask > 0) & ~inner_core
+
+    interior_candidate = _build_checkerboard_candidate(
+        raw_rgb,
+        inner_core,
+        min_gray=150,
+        max_gray=245,
+        exclude_dark_neighbors=True,
+    )
+    cleaned_pixels = int(np.count_nonzero(interior_candidate))
+    if cleaned_pixels > 0:
+        raw_rgb[interior_candidate] = (255, 255, 255)
+
+    boundary_candidate = _build_checkerboard_candidate(
+        raw_rgb,
+        border_ring,
+        min_gray=115,
+        max_gray=245,
+        exclude_dark_neighbors=False,
+    )
+    boundary_restored_pixels = int(np.count_nonzero(boundary_candidate))
+    if boundary_restored_pixels > 0:
+        raw_rgb[boundary_candidate] = original_rgb[boundary_candidate]
+
+    cleaned_image = raw_image.copy()
+    if cleaned_image.ndim == 2:
+        cleaned_image = cv2.cvtColor(raw_rgb, cv2.COLOR_BGR2GRAY)
+    elif cleaned_image.ndim == 3 and cleaned_image.shape[2] == 4:
+        cleaned_image[:, :, :3] = raw_rgb
+    else:
+        cleaned_image = raw_rgb
+
+    summary["cleanup_applied"] = (cleaned_pixels + boundary_restored_pixels) > 0
+    summary["cleaned_pixels"] = cleaned_pixels
+    summary["boundary_restored_pixels"] = boundary_restored_pixels
+    return cleaned_image, summary
+
+
 def summarize_step4_validation(
     *,
     page_id: str,
     source_kind: str | None,
+    source_mode: str,
     readable_image: bool,
     source_size_matches: bool,
     alignment_applied: bool,
@@ -225,9 +353,14 @@ def summarize_step4_validation(
     outside_rgb_nonzero_pixels: int,
     inside_alpha_preservation_ratio: float,
     nonzero_alpha_pixels: int,
+    checkerboard_cleanup_applied: bool,
+    checkerboard_cleaned_pixels: int,
+    checkerboard_boundary_restored_pixels: int,
     min_inside_alpha_preservation_ratio: float = 0.90,
 ) -> Step4ValidationReport:
     notes: list[str] = []
+    if source_mode:
+        notes.append(f"step4 source mode classified as {source_mode}")
     if not readable_image:
         notes.append("step4 source image is unreadable")
     if not source_size_matches and alignment_applied:
@@ -252,6 +385,14 @@ def summarize_step4_validation(
         )
     if nonzero_alpha_pixels <= 0:
         notes.append("restored RGBA output has no nonzero alpha pixels")
+    if checkerboard_cleanup_applied:
+        notes.append(
+            "checkerboard cleanup applied before alpha restore: "
+            f"{checkerboard_cleaned_pixels} interior pixel(s) whitened, "
+            f"{checkerboard_boundary_restored_pixels} boundary pixel(s) restored from the original page"
+        )
+    elif source_mode.startswith("opaque_"):
+        notes.append("opaque Step 4 source was inspected for checkerboard contamination")
 
     passed = (
         readable_image
@@ -268,6 +409,7 @@ def summarize_step4_validation(
     return Step4ValidationReport(
         page_id=page_id,
         source_kind=source_kind,
+        source_mode=source_mode,
         readable_image=readable_image,
         source_size_matches=source_size_matches,
         alignment_applied=alignment_applied,
@@ -277,6 +419,9 @@ def summarize_step4_validation(
         outside_rgb_nonzero_pixels=outside_rgb_nonzero_pixels,
         inside_alpha_preservation_ratio=inside_alpha_preservation_ratio,
         nonzero_alpha_pixels=nonzero_alpha_pixels,
+        checkerboard_cleanup_applied=checkerboard_cleanup_applied,
+        checkerboard_cleaned_pixels=checkerboard_cleaned_pixels,
+        checkerboard_boundary_restored_pixels=checkerboard_boundary_restored_pixels,
         passed=passed,
         notes=notes,
     )
@@ -297,12 +442,14 @@ def _save_step4_failure_report(
     page_id: str,
     *,
     source_kind: str | None,
+    source_mode: str,
     readable_image: bool,
     notes: list[str],
 ) -> Step4ValidationReport:
     report = Step4ValidationReport(
         page_id=page_id,
         source_kind=source_kind,
+        source_mode=source_mode,
         readable_image=readable_image,
         source_size_matches=False,
         alignment_applied=False,
@@ -422,6 +569,7 @@ def validate_step4(project_root: Path, page_id: str) -> Step4ValidationReport:
     report = summarize_step4_validation(
         page_id=page_id,
         source_kind=page_manifest.nano_source_kind,
+        source_mode=page_manifest.step4_source_mode,
         readable_image=readable_image,
         source_size_matches=source_size_matches,
         alignment_applied=alignment_applied,
@@ -431,6 +579,9 @@ def validate_step4(project_root: Path, page_id: str) -> Step4ValidationReport:
         outside_rgb_nonzero_pixels=outside_rgb_nonzero_pixels,
         inside_alpha_preservation_ratio=inside_alpha_preservation_ratio,
         nonzero_alpha_pixels=nonzero_alpha_pixels,
+        checkerboard_cleanup_applied=page_manifest.step4_checkerboard_cleanup_applied,
+        checkerboard_cleaned_pixels=page_manifest.step4_checkerboard_cleaned_pixels,
+        checkerboard_boundary_restored_pixels=page_manifest.step4_checkerboard_boundary_restored_pixels,
     )
     return _save_step4_report(project_root, page_id, report)
 
@@ -458,6 +609,15 @@ def restore_alpha(project_root: Path, page_id: str) -> dict[str, Any]:
                 readable_image=False,
             )
 
+        cleaned_raw_image, cleanup_summary = _cleanup_checkerboard_contamination(
+            raw_image=raw_image,
+            original_image=context["original_image"],
+            union_mask=context["union_mask"],
+        )
+        raw_image = cleaned_raw_image
+        if not cv2.imwrite(str(raw_output_path), raw_image):
+            raise OSError(f"Unable to write normalized Step 4 raw image: {raw_output_path}")
+
         restored_alpha, _ = build_soft_alpha_from_union_mask(context["union_mask"])
         restored_rgba = _compose_restored_rgba(raw_image, restored_alpha)
         rgba_output_path = project_root / "artifacts" / "nano" / f"{page_id}_rgba.png"
@@ -469,6 +629,12 @@ def restore_alpha(project_root: Path, page_id: str) -> dict[str, Any]:
         page_manifest.nano_source_kind = source_kind
         page_manifest.nano_banana_raw_path = _as_relative(project_root, raw_output_path)
         page_manifest.nano_banana_rgba_path = _as_relative(project_root, rgba_output_path)
+        page_manifest.step4_source_mode = str(cleanup_summary["source_mode"])
+        page_manifest.step4_checkerboard_cleanup_applied = bool(cleanup_summary["cleanup_applied"])
+        page_manifest.step4_checkerboard_cleaned_pixels = int(cleanup_summary["cleaned_pixels"])
+        page_manifest.step4_checkerboard_boundary_restored_pixels = int(
+            cleanup_summary["boundary_restored_pixels"]
+        )
         save_page_manifest(project_root, page_manifest)
 
         report = validate_step4(project_root, page_id)
@@ -485,11 +651,16 @@ def restore_alpha(project_root: Path, page_id: str) -> dict[str, Any]:
             _save_step4_report(project_root, page_id, report)
     except (FileNotFoundError, OSError, Step4SourceError) as exc:
         page_manifest.nano_banana_rgba_path = ""
+        page_manifest.step4_source_mode = ""
+        page_manifest.step4_checkerboard_cleanup_applied = False
+        page_manifest.step4_checkerboard_cleaned_pixels = 0
+        page_manifest.step4_checkerboard_boundary_restored_pixels = 0
         save_page_manifest(project_root, page_manifest)
         report = _save_step4_failure_report(
             project_root,
             page_id,
             source_kind=page_manifest.nano_source_kind,
+            source_mode=page_manifest.step4_source_mode,
             readable_image=getattr(exc, "readable_image", False),
             notes=[str(exc)],
         )

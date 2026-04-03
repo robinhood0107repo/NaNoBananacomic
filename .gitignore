@@ -2,6 +2,7 @@
 legacy/
 GUI_PLAN/
 testmanga/
+/newtest*/
 
 # Local environments and vendored dependencies
 .venv/

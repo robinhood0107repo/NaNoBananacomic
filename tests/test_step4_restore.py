@@ -136,6 +136,48 @@ class Step4RestoreTests(unittest.TestCase):
             self.assertEqual(updated_manifest.nano_manual_import_path, "imports/nano/0001_submitted.png")
             self.assertEqual(int(updated_raw[0, 0, 0]), 220)
 
+    def test_restore_alpha_cleans_checkerboard_preview_from_opaque_import(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            build_phase2_ready_page(project_root)
+
+            manual = np.full((240, 180, 3), 255, dtype=np.uint8)
+            square_a = np.array((188, 188, 188), dtype=np.uint8)
+            square_b = np.array((224, 224, 224), dtype=np.uint8)
+            for y in range(72, 120, 8):
+                for x in range(68, 116, 8):
+                    color = square_a if ((x // 8) + (y // 8)) % 2 == 0 else square_b
+                    manual[y : y + 8, x : x + 8] = color
+            cv2.putText(
+                manual,
+                "KO",
+                (72, 101),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (40, 40, 40),
+                1,
+                cv2.LINE_AA,
+            )
+            manual_path = project_root / "imports" / "nano" / "0001_result.png"
+            cv2.imwrite(str(manual_path), manual)
+
+            result = restore_alpha(project_root, "0001")
+            report = validate_step4(project_root, "0001")
+            page_manifest = load_page_manifest(project_root, "0001")
+            cleaned_raw = cv2.imread(
+                str(project_root / page_manifest.nano_banana_raw_path),
+                cv2.IMREAD_UNCHANGED,
+            )
+
+            self.assertTrue(result["passed"])
+            self.assertTrue(report.passed)
+            self.assertEqual(report.source_mode, "opaque_full_page")
+            self.assertTrue(report.checkerboard_cleanup_applied)
+            self.assertGreater(report.checkerboard_cleaned_pixels, 0)
+            self.assertGreaterEqual(int(cleaned_raw[80, 72, 0]), 245)
+            self.assertGreaterEqual(int(cleaned_raw[80, 72, 1]), 245)
+            self.assertGreaterEqual(int(cleaned_raw[80, 72, 2]), 245)
+
 
 if __name__ == "__main__":
     unittest.main()

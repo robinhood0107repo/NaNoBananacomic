@@ -71,6 +71,10 @@ class PageManifest:
     step4_validation_report_path: str = ""
     step5_validation_report_path: str = ""
     step6_validation_report_path: str = ""
+    step4_source_mode: str = ""
+    step4_checkerboard_cleanup_applied: bool = False
+    step4_checkerboard_cleaned_pixels: int = 0
+    step4_checkerboard_boundary_restored_pixels: int = 0
     step1_detector_name: str = ""
     balloons: list[dict[str, Any]] = field(default_factory=list)
 
@@ -134,6 +138,7 @@ class Step3ValidationReport:
 class Step4ValidationReport:
     page_id: str
     source_kind: str | None
+    source_mode: str
     readable_image: bool
     source_size_matches: bool
     alignment_applied: bool
@@ -143,6 +148,9 @@ class Step4ValidationReport:
     outside_rgb_nonzero_pixels: int
     inside_alpha_preservation_ratio: float
     nonzero_alpha_pixels: int
+    checkerboard_cleanup_applied: bool = False
+    checkerboard_cleaned_pixels: int = 0
+    checkerboard_boundary_restored_pixels: int = 0
     passed: bool = False
     notes: list[str] = field(default_factory=list)
 

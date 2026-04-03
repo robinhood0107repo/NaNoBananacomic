@@ -79,7 +79,9 @@ Phase 3 외부 연동은 아래 두 경로를 모두 허용한다.
 - 무료 웹 경로는 prompt package 생성과 수동 결과 가져오기를 정식 경로로 본다.
 - 수동 웹 결과는 GUI 파일 선택 또는 `imports/nano/` 붙여넣기로 수용한다.
 - 수동 웹 결과는 원본과 해상도나 캔버스 위치가 달라진 상태로 들어오는 것을 정상 입력으로 본다.
+- 수동 웹 결과는 진짜 투명 PNG가 아니라 checkerboard preview가 박힌 opaque RGB 이미지일 수도 있다.
 - 로컬은 수동 import 결과를 원본 페이지 좌표계에 맞추는 책임을 가진다.
+- 로컬은 opaque 수동 import에 대해서도 Phase 4에서 transparency cleanup과 alpha restore를 수행한 뒤 합성 단계로 넘긴다.
 
 ### 3.4 수동 import 파일명 규칙
 
@@ -175,6 +177,7 @@ Git에 올리는 대상:
 
 - `legacy/`
 - `GUI_PLAN/`
+- `newtest*`
 - `.venv/`
 - `.vendor/`
 - `.bootstrap/`
@@ -203,15 +206,22 @@ Git에 올리는 대상:
 
 ### 6.1 브랜치 규칙
 
-- 안정 브랜치는 `main`
-- 작업 브랜치는 `codex/...`
-- 기능, 수정, 실험은 가급적 `main`에서 직접 하지 않는다.
+- 출시 브랜치는 `main`
+- 출시 직전 통합 검증 브랜치는 `dev`
+- 기능, 수정, 실험 브랜치는 `codex/...`
+- 기능, 수정, 실험은 가급적 `main`과 `dev`에서 직접 하지 않는다.
 
 브랜치 이름 예시:
 
 - `codex/setup-repo-rules`
 - `codex/add-alpha-restore`
 - `codex/benchmark-bw-detector`
+
+운영 규칙:
+
+- 의미 있는 기능 작업은 `codex/...`에서 진행한다.
+- 테스트와 문서 정리가 끝난 안정 커밋은 `dev`에 보관한다.
+- `main`은 출시 직전까지 보호하고, 검증 없이 직접 업데이트하지 않는다.
 
 ### 6.2 원격 저장소 규칙
 
